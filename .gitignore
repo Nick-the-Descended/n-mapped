@@ -1,0 +1,27 @@
+# Build output
+/n-mapped
+/bin/
+/dist/
+
+# Frontend build artifacts (embedded into Go binary at build time)
+/frontend/node_modules/
+/frontend/dist/
+/frontend/.vite/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local data / logs
+*.log
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Coverage
+coverage.out
+coverage.html

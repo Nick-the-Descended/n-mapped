@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>n-mapped</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 4rem auto; padding: 0 1.5rem; color: #222; line-height: 1.5; }
+    code { background: #f4f4f4; padding: 0.1em 0.4em; border-radius: 4px; }
+    h1 { font-weight: 600; }
+    .pill { display: inline-block; background: #eef; color: #335; padding: 0.1em 0.6em; border-radius: 999px; font-size: 0.85em; }
+  </style>
+</head>
+<body>
+  <h1>n-mapped <span class="pill">backend running</span></h1>
+  <p>This is the Phase 0 placeholder. The Go backend is up and serving the API. The Svelte frontend is built next.</p>
+  <p>Try the API:</p>
+  <ul>
+    <li><a href="/api/health">/api/health</a></li>
+    <li><a href="/api/version">/api/version</a> &mdash; detected nmap install</li>
+    <li><a href="/api/privilege">/api/privilege</a> &mdash; launch-time privilege state</li>
+    <li><a href="/api/catalog">/api/catalog</a> &mdash; flag catalog</li>
+  </ul>
+  <p>To enable raw-socket scans, relaunch with <code>sudo n-mapped</code> or <code>n-mapped --privileged</code>.</p>
+</body>
+</html>

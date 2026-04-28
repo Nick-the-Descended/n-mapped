@@ -138,6 +138,34 @@
                 {#if checked && f.long_description}
                   <p class="long">{f.long_description}</p>
                 {/if}
+                {#if checked && f.warnings && f.warnings.length > 0}
+                  <ul class="warnings">
+                    {#each f.warnings as w}
+                      <li class="warn-{w.level}">
+                        {w.level === 'danger' ? '⛔' : w.level === 'warn' ? '⚠️' : 'ℹ️'} {w.text}
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+                {#if checked && f.examples && f.examples.length > 0}
+                  <details class="examples">
+                    <summary>Examples</summary>
+                    {#each f.examples as ex (ex.command)}
+                      <div class="ex">
+                        <code>{ex.command}</code>
+                        {#if ex.explanation}<span class="ex-note">{ex.explanation}</span>{/if}
+                      </div>
+                    {/each}
+                  </details>
+                {/if}
+                {#if checked && f.references && f.references.length > 0}
+                  <p class="refs">
+                    {#each f.references as ref, idx (ref.url)}
+                      {#if idx > 0} · {/if}
+                      <a href={ref.url} target="_blank" rel="noopener noreferrer">{ref.title}</a>
+                    {/each}
+                  </p>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -243,4 +271,28 @@
     font-size: 0.85rem;
     max-width: 56rem;
   }
+  ul.warnings {
+    list-style: none;
+    margin: 0.4rem 0 0.2rem 1.6rem;
+    padding: 0;
+    font-size: 0.85rem;
+  }
+  ul.warnings li { padding: 0.15rem 0; }
+  .warn-warn { color: var(--warn); }
+  .warn-danger { color: var(--danger); }
+  .warn-info { color: var(--text-dim); }
+  details.examples { margin: 0.4rem 0 0.3rem 1.6rem; }
+  details.examples summary {
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+  .ex { margin: 0.35rem 0; }
+  .ex-note { color: var(--text-dim); font-size: 0.85rem; margin-left: 0.4rem; }
+  .refs {
+    margin: 0.35rem 0 0.2rem 1.6rem;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+  }
+  .refs a { color: var(--accent); }
 </style>

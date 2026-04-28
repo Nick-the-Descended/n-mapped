@@ -22,6 +22,7 @@ import (
 	"github.com/nick-the-descended/n-mapped/internal/config"
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
 	"github.com/nick-the-descended/n-mapped/internal/server"
+	"github.com/nick-the-descended/n-mapped/internal/store"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=...".
@@ -74,6 +75,11 @@ func run(bind, nmapPath string, privileged, noBrowser bool) error {
 		log.Printf("warning: --privileged was set but the process is not actually elevated; relaunch with `sudo n-mapped`")
 	}
 
+	hist, err := store.NewHistory(dataDir)
+	if err != nil {
+		return fmt.Errorf("opening history store: %w", err)
+	}
+
 	srv, err := server.New(server.Options{
 		Bind:     bind,
 		NmapPath: nmapPath,
@@ -81,6 +87,7 @@ func run(bind, nmapPath string, privileged, noBrowser bool) error {
 		NmapInfo: info,
 		Privs:    priv,
 		Runner:   nmap.NewRunner(),
+		History:  hist,
 	})
 	if err != nil {
 		return err

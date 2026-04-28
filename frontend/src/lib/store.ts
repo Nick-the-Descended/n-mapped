@@ -59,3 +59,118 @@ export function previewSummary(allFlags: Flag[], selected: Set<string>): string 
   }
   return lines.join('\n');
 }
+
+// ParseResult is what the reverse parser returns from a free-form nmap
+// command: the matched flag IDs (with their values), plus the leftover
+// tokens that look like targets, plus any tokens we couldn't match.
+export interface ParseResult {
+  flagIDs: string[];
+  flagValues: Record<string, string>;
+  targets: string[];
+  unrecognized: string[];
+}
+
+const SKIP_FLAGS = new Set([
+  '-oX', '-oG', '-oA', '-oN', '-oS', // output format flags we always inject
+  '--stats-every',                    // injected automatically
+  '--', '-',                          // separators / stdout marker
+]);
+
+// Tokenize a shell-style command line. Single and double quotes preserve
+// whitespace; backslashes are passed through. Good enough for a paste-and-
+// match flow — not a full POSIX shell parser.
+function tokenize(input: string): string[] {
+  const out: string[] = [];
+  let buf = '';
+  let quote: '' | "'" | '"' = '';
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (quote) {
+      if (c === quote) { quote = ''; continue; }
+      buf += c;
+      continue;
+    }
+    if (c === '"' || c === "'") { quote = c; continue; }
+    if (/\s/.test(c)) {
+      if (buf) { out.push(buf); buf = ''; }
+      continue;
+    }
+    buf += c;
+  }
+  if (buf) out.push(buf);
+  return out;
+}
+
+// Match a token against the catalog. Tries exact short/long, then the
+// "-T<n>" pattern where -T0..-T5 collapse to the timing-template flag, and
+// finally the long=value style (--top-ports=20).
+function matchFlag(token: string, allFlags: Flag[]): { flag: Flag; inlineValue?: string } | null {
+  for (const f of allFlags) {
+    if (f.short && token === f.short) return { flag: f };
+    if (f.long && token === f.long) return { flag: f };
+  }
+  // Inline value: --foo=bar
+  if (token.startsWith('--') && token.includes('=')) {
+    const eq = token.indexOf('=');
+    const head = token.slice(0, eq);
+    const val = token.slice(eq + 1);
+    for (const f of allFlags) {
+      if (f.long === head) return { flag: f, inlineValue: val };
+    }
+  }
+  // Glued value: -p22, -T4
+  for (const f of allFlags) {
+    if (f.short && f.value_type && f.value_type !== 'boolean' && token.startsWith(f.short) && token.length > f.short.length) {
+      return { flag: f, inlineValue: token.slice(f.short.length) };
+    }
+  }
+  return null;
+}
+
+export function parseCommand(input: string, allFlags: Flag[]): ParseResult {
+  const tokens = tokenize(input.trim());
+  const result: ParseResult = { flagIDs: [], flagValues: {}, targets: [], unrecognized: [] };
+  const seen = new Set<string>();
+
+  // Drop the leading "nmap" if present.
+  let i = 0;
+  if (tokens[0] && /^nmap(\.exe)?$/i.test(tokens[0].split('/').pop() ?? '')) i = 1;
+  if (tokens[0] && tokens[0].endsWith('/nmap')) i = 1;
+
+  let afterDoubleDash = false;
+
+  for (; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (tok === '--') { afterDoubleDash = true; continue; }
+    if (afterDoubleDash) {
+      result.targets.push(tok);
+      continue;
+    }
+    if (SKIP_FLAGS.has(tok)) {
+      // Some skip flags consume the next token as a value (e.g. --stats-every 2s, -oX -).
+      if (tok === '--stats-every' || tok === '-oX' || tok === '-oG' || tok === '-oA' || tok === '-oN' || tok === '-oS') {
+        i++;
+      }
+      continue;
+    }
+    if (!tok.startsWith('-')) {
+      // Bare token — almost always a target.
+      result.targets.push(tok);
+      continue;
+    }
+    const m = matchFlag(tok, allFlags);
+    if (!m) { result.unrecognized.push(tok); continue; }
+    const { flag, inlineValue } = m;
+    if (seen.has(flag.id)) continue;
+    seen.add(flag.id);
+    result.flagIDs.push(flag.id);
+    if (flag.value_type && flag.value_type !== 'boolean') {
+      if (inlineValue !== undefined) {
+        result.flagValues[flag.id] = inlineValue;
+      } else if (i + 1 < tokens.length && !tokens[i + 1].startsWith('-')) {
+        result.flagValues[flag.id] = tokens[++i];
+      }
+    }
+  }
+  return result;
+}

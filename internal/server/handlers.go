@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
@@ -24,6 +26,8 @@ func (s *Server) routes() error {
 	s.mux.HandleFunc("/api/catalog", s.handleCatalog)
 	s.mux.HandleFunc("/api/scans", s.handleScansCollection)
 	s.mux.HandleFunc("/api/scans/", s.handleScanItem)
+	s.mux.HandleFunc("/api/history", s.handleHistoryList)
+	s.mux.HandleFunc("/api/history/", s.handleHistoryItem)
 	return nil
 }
 
@@ -81,7 +85,9 @@ func (s *Server) handleScansCollection(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusFailedDependency, "nmap not detected: "+s.opts.NmapInfo.Error)
 		return
 	}
-	scan, err := s.opts.Runner.Start(r.Context(), built)
+	// Detach from the request context: when the POST returns 202 the request
+	// context cancels, and we don't want that to kill the running scan.
+	scan, err := s.opts.Runner.Start(context.Background(), built)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -164,6 +170,75 @@ func (s *Server) streamEvents(w http.ResponseWriter, r *http.Request, scan *nmap
 		case <-r.Context().Done():
 			return
 		}
+	}
+}
+
+// GET /api/history?limit=N — list summaries newest-first.
+func (s *Server) handleHistoryList(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	limit := 0
+	if q := r.URL.Query().Get("limit"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n >= 0 {
+			limit = n
+		}
+	}
+	list, err := s.opts.History.List(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// GET    /api/history/{id}     — full record
+// DELETE /api/history/{id}     — remove record
+// GET    /api/history/{id}/xml — raw nmap XML (text/xml)
+func (s *Server) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeError(w, http.StatusNotFound, "history disabled")
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, "/api/history/")
+	if rest == "" {
+		writeError(w, http.StatusNotFound, "expected /api/history/{id}")
+		return
+	}
+	parts := strings.SplitN(rest, "/", 2)
+	id := parts[0]
+	rec, err := s.opts.History.Get(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rec == nil {
+		writeError(w, http.StatusNotFound, "no such record")
+		return
+	}
+	if len(parts) == 2 && parts[1] == "xml" {
+		if rec.Result == nil || len(rec.Result.RawXML) == 0 {
+			writeError(w, http.StatusNotFound, "no XML stored for this record")
+			return
+		}
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+id+".xml\"")
+		_, _ = w.Write(rec.Result.RawXML)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		writeJSON(w, http.StatusOK, rec)
+	case http.MethodDelete:
+		if err := s.opts.History.Delete(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	default:
+		w.Header().Set("Allow", "GET, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
 	}
 }
 

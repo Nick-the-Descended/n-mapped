@@ -27,6 +27,9 @@ type Built struct {
 	Argv      []string `json:"argv"`        // includes the binary path at [0]
 	Display   string   `json:"display"`     // shell-quoted form for the UI command preview
 	NeedsRoot bool     `json:"needs_root"`
+	// Source request metadata preserved through to history.
+	Targets []string `json:"targets"`
+	FlagIDs []string `json:"flag_ids"`
 }
 
 // Build validates a Request against the catalog and the current privilege
@@ -106,7 +109,13 @@ func Build(req Request, cat *catalog.Catalog, info Info, priv auth.State) (Built
 		bin = "nmap"
 	}
 	argv := append([]string{bin}, args...)
-	return Built{Argv: argv, Display: shellQuote(argv), NeedsRoot: needsRoot}, nil
+	return Built{
+		Argv:      argv,
+		Display:   shellQuote(argv),
+		NeedsRoot: needsRoot,
+		Targets:   append([]string(nil), req.Targets...),
+		FlagIDs:   append([]string(nil), flagIDs...),
+	}, nil
 }
 
 // validateTarget rejects shell metacharacters defensively. The argv path

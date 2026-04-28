@@ -1,5 +1,7 @@
 import type {
   Catalog,
+  HistoryRecord,
+  HistorySummary,
   NmapInfo,
   PrivilegeState,
   ScanEvent,
@@ -31,12 +33,30 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return parsed as T;
 }
 
+async function deleteJSON<T>(path: string): Promise<T> {
+  const res = await fetch(path, { method: 'DELETE' });
+  const text = await res.text();
+  let parsed: unknown = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* leave null */ }
+  if (!res.ok) {
+    const msg = (parsed && typeof parsed === 'object' && 'error' in parsed)
+      ? String((parsed as { error: unknown }).error)
+      : text || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return parsed as T;
+}
+
 export const api = {
   catalog: () => getJSON<Catalog>('/api/catalog'),
   version: () => getJSON<NmapInfo>('/api/version'),
   privilege: () => getJSON<PrivilegeState>('/api/privilege'),
   startScan: (req: ScanRequest) => postJSON<ScanStartResponse>('/api/scans', req),
   stopScan: (id: string) => postJSON<{ stopped: boolean }>(`/api/scans/${id}/stop`, {}),
+  history: (limit = 0) => getJSON<HistorySummary[]>(`/api/history${limit ? `?limit=${limit}` : ''}`),
+  historyRecord: (id: string) => getJSON<HistoryRecord>(`/api/history/${id}`),
+  historyDelete: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/history/${id}`),
+  historyXmlURL: (id: string) => `/api/history/${id}/xml`,
 };
 
 // streamScan opens an SSE connection for the given scan id and invokes

@@ -1,33 +1,74 @@
 <script lang="ts">
   import { api, streamScan } from '../lib/api';
-  import type { ScanEvent, ScanRequest, ScanStartResponse } from '../lib/types';
+  import type { Host, RunStats, ScanInfo, ScanRequest, TaskProgress } from '../lib/types';
 
-  let { request }: { request: ScanRequest } = $props();
+  let {
+    request,
+    onStart,
+    onUpdate,
+    onDone,
+  }: {
+    request: ScanRequest;
+    onStart: (id: string, display: string) => void;
+    onUpdate: (state: {
+      hosts: Host[];
+      runstats: RunStats | null;
+      scaninfos: ScanInfo[];
+      progress: TaskProgress | null;
+      stderr: string[];
+    }) => void;
+    onDone: (id: string, exitCode: number, error: string | null) => void;
+  } = $props();
 
   let starting = $state(false);
-  let scan = $state<ScanStartResponse | null>(null);
-  let events = $state<ScanEvent[]>([]);
+  let scanID = $state<string | null>(null);
+  let display = $state<string | null>(null);
   let finished = $state(false);
   let exitCode = $state<number | null>(null);
   let errorMsg = $state<string | null>(null);
   let stop: (() => void) | null = null;
 
+  // Local accumulators pushed up via onUpdate. Marked $state so Svelte 5
+  // doesn't warn on mutation; only stderr is read in this component's template.
+  let hosts = $state<Host[]>([]);
+  let scaninfos = $state<ScanInfo[]>([]);
+  let runstats = $state<RunStats | null>(null);
+  let progress = $state<TaskProgress | null>(null);
+  let stderr = $state<string[]>([]);
+
+  function pushUpdate() {
+    onUpdate({ hosts: [...hosts], scaninfos: [...scaninfos], runstats, progress, stderr: [...stderr] });
+  }
+
   async function start() {
     errorMsg = null;
-    events = [];
     finished = false;
     exitCode = null;
+    hosts = []; scaninfos = []; runstats = null; progress = null; stderr = [];
+    pushUpdate();
     starting = true;
     try {
-      scan = await api.startScan(request);
-      stop = streamScan(scan.id, (ev) => {
-        events = [...events, ev];
-        if (ev.kind === 'done') {
-          finished = true;
-          exitCode = ev.code ?? 0;
-        } else if (ev.kind === 'error') {
-          finished = true;
-          errorMsg = ev.err ?? 'unknown error';
+      const res = await api.startScan(request);
+      scanID = res.id;
+      display = res.display;
+      onStart(res.id, res.display);
+      stop = streamScan(res.id, (ev) => {
+        switch (ev.kind) {
+          case 'host':         if (ev.host) { hosts.push(ev.host); pushUpdate(); } break;
+          case 'scaninfo':     if (ev.scaninfo) { scaninfos.push(ev.scaninfo); pushUpdate(); } break;
+          case 'taskprogress': if (ev.progress) { progress = ev.progress; pushUpdate(); } break;
+          case 'runstats':     if (ev.runstats) { runstats = ev.runstats; pushUpdate(); } break;
+          case 'stderr':       if (ev.line) { stderr.push(ev.line); pushUpdate(); } break;
+          case 'done':
+            finished = true;
+            exitCode = ev.code ?? 0;
+            onDone(scanID!, exitCode, ev.err ?? null);
+            break;
+          case 'error':
+            finished = true;
+            errorMsg = ev.err ?? 'unknown error';
+            onDone(scanID!, exitCode ?? -1, errorMsg);
+            break;
         }
       });
     } catch (e) {
@@ -38,39 +79,27 @@
   }
 
   async function cancel() {
-    if (!scan) return;
-    try {
-      await api.stopScan(scan.id);
-    } catch (e) {
-      errorMsg = (e as Error).message;
-    }
+    if (!scanID) return;
+    try { await api.stopScan(scanID); }
+    catch (e) { errorMsg = (e as Error).message; }
   }
 
   function clear() {
     if (stop) stop();
     stop = null;
-    scan = null;
-    events = [];
+    scanID = null;
+    display = null;
     finished = false;
     exitCode = null;
     errorMsg = null;
-  }
-
-  function formatLine(ev: ScanEvent): string {
-    switch (ev.kind) {
-      case 'start':  return '▶ scan started';
-      case 'stdout': return ev.line ?? '';
-      case 'stderr': return ev.line ?? '';
-      case 'done':   return `■ done (exit ${ev.code ?? 0})`;
-      case 'error':  return `✖ ${ev.err ?? 'error'}`;
-      default:       return '';
-    }
+    hosts = []; scaninfos = []; runstats = null; progress = null; stderr = [];
+    pushUpdate();
   }
 </script>
 
 <section>
   <div class="actions">
-    {#if !scan}
+    {#if !scanID}
       <button class="primary" onclick={start} disabled={starting}>
         {starting ? 'Starting…' : 'Run scan'}
       </button>
@@ -79,13 +108,13 @@
     {:else}
       <button onclick={clear}>Clear &amp; new scan</button>
     {/if}
-    {#if scan}
+    {#if scanID}
       <span class="pill {finished ? (exitCode === 0 ? 'ok' : 'danger') : 'accent'}">
         {finished
           ? (exitCode === 0 ? `done (exit ${exitCode})` : `failed (exit ${exitCode})`)
           : 'running…'}
       </span>
-      <span class="scan-id">id: <code>{scan.id.slice(0, 8)}</code></span>
+      <span class="scan-id">id: <code>{scanID.slice(0, 8)}</code></span>
     {/if}
   </div>
 
@@ -93,10 +122,11 @@
     <div class="error">⚠️ {errorMsg}</div>
   {/if}
 
-  {#if scan}
-    <div class="output-label">Live output</div>
-    <pre class="output">{#each events as ev (ev.when + ev.kind + (ev.line ?? ''))}<span class={ev.kind}>{formatLine(ev)}</span>
-{/each}</pre>
+  {#if scanID && stderr.length > 0}
+    <details class="stderr">
+      <summary>nmap status / warnings ({stderr.length})</summary>
+      <pre>{stderr.join('\n')}</pre>
+    </details>
   {/if}
 </section>
 
@@ -123,20 +153,12 @@
     border-radius: var(--radius);
     color: var(--danger);
   }
-  .output-label {
-    margin: 0.85rem 0 0.35rem;
-    font-weight: 600;
-    color: var(--text-dim);
-    font-size: 0.85rem;
-  }
-  .output {
-    max-height: 22rem;
+  details.stderr { margin-top: 0.85rem; }
+  details.stderr summary { cursor: pointer; color: var(--text-dim); font-size: 0.85rem; }
+  details.stderr pre {
+    max-height: 14rem;
     overflow: auto;
-    background: var(--code-bg);
-    font-size: 0.82rem;
-    line-height: 1.45;
+    margin-top: 0.4rem;
+    font-size: 0.8rem;
   }
-  .output .stderr { color: var(--warn); }
-  .output .start, .output .done { color: var(--accent); }
-  .output .error { color: var(--danger); }
 </style>

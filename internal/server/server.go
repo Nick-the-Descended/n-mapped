@@ -12,6 +12,7 @@ import (
 	"github.com/nick-the-descended/n-mapped/internal/auth"
 	"github.com/nick-the-descended/n-mapped/internal/catalog"
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
+	"github.com/nick-the-descended/n-mapped/internal/store"
 )
 
 // Options bundles everything the server needs at construction time.
@@ -22,6 +23,7 @@ type Options struct {
 	NmapInfo nmap.Info
 	Privs    auth.State
 	Runner   *nmap.Runner
+	History  *store.History
 }
 
 // Server is an http.Handler plus the lifecycle hooks for graceful shutdown.
@@ -41,6 +43,15 @@ func New(opts Options) (*Server, error) {
 	}
 	if opts.Runner == nil {
 		opts.Runner = nmap.NewRunner()
+	}
+	if opts.History != nil {
+		hist := opts.History
+		opts.Runner.SetHook(func(res nmap.Result) {
+			rec := store.RecordFromResult(res)
+			if err := hist.Save(rec); err != nil {
+				log.Printf("history: save scan %s failed: %v", res.ID, err)
+			}
+		})
 	}
 	s := &Server{opts: opts, mux: http.NewServeMux()}
 	if err := s.routes(); err != nil {

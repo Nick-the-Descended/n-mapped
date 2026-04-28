@@ -86,12 +86,144 @@ export interface ScanStartResponse {
   started: string;
 }
 
-export type ScanEventKind = 'start' | 'stdout' | 'stderr' | 'done' | 'error';
+export type ScanEventKind =
+  | 'start'
+  | 'stderr'
+  | 'scaninfo'
+  | 'host'
+  | 'taskprogress'
+  | 'runstats'
+  | 'done'
+  | 'error';
+
+export interface ScanInfo {
+  type: string;
+  protocol: string;
+  numservices: number;
+  services?: string;
+}
+
+export interface Status { state: string; reason?: string; reason_ttl?: number; }
+export interface Address { addr: string; addrtype: string; vendor?: string; }
+export interface Hostname { name: string; type: string; }
+export interface Hostnames { hostname?: Hostname[]; }
+
+export interface PortState { state: string; reason?: string; reason_ttl?: number; }
+export interface Service {
+  name: string;
+  product?: string;
+  version?: string;
+  extrainfo?: string;
+  method?: string;
+  conf?: number;
+  ostype?: string;
+  cpe?: string[];
+}
+export interface ScriptOutput { id: string; output: string; }
+export interface Port {
+  protocol: string;
+  portid: number;
+  state: PortState;
+  service?: Service;
+  scripts?: ScriptOutput[];
+}
+export interface ExtraPorts { state: string; count: number; }
+export interface Ports { extraports?: ExtraPorts[]; ports?: Port[]; }
+
+export interface OSClass {
+  type?: string;
+  vendor?: string;
+  osfamily?: string;
+  osgen?: string;
+  accuracy?: number;
+}
+export interface OSMatch { name: string; accuracy: number; classes?: OSClass[]; }
+export interface OS { matches?: OSMatch[]; }
+
+export interface HostTimes { srtt?: number; rttvar?: number; to?: number; }
+
+export interface Host {
+  starttime?: number;
+  endtime?: number;
+  status: Status;
+  addresses: Address[];
+  hostnames: Hostnames;
+  ports?: Ports;
+  os?: OS;
+  times?: HostTimes;
+}
+
+export interface TaskProgress {
+  task?: string;
+  time?: number;
+  percent: number;
+  remaining?: number;
+  etc?: number;
+}
+
+export interface RunStats {
+  finished: { time: number; timestr?: string; elapsed: number; summary?: string; exit?: string };
+  hosts: { up: number; down: number; total: number };
+}
+
+export interface Run {
+  scanner: string;
+  args: string;
+  start: number;
+  startstr?: string;
+  version: string;
+  xmloutputversion?: string;
+  scaninfo?: ScanInfo[];
+  hosts: Host[];
+  runstats?: RunStats;
+}
 
 export interface ScanEvent {
   kind: ScanEventKind;
-  line?: string;
   when: string;
+  line?: string;
   code?: number;
   err?: string;
+  scaninfo?: ScanInfo;
+  host?: Host;
+  progress?: TaskProgress;
+  runstats?: RunStats;
+}
+
+export interface HistorySummary {
+  id: string;
+  display: string;
+  targets: string[];
+  started: string;
+  ended: string;
+  exit_code: number;
+  hosts_up: number;
+  hosts_total: number;
+  open_ports: number;
+  error?: string;
+}
+
+export interface HistoryRecord {
+  id: string;
+  display: string;
+  argv: string[];
+  targets: string[];
+  flag_ids?: string[];
+  started: string;
+  ended: string;
+  exit_code: number;
+  result?: {
+    id: string;
+    argv: string[];
+    display: string;
+    targets?: string[];
+    flag_ids?: string[];
+    started: string;
+    ended: string;
+    exit_code: number;
+    run?: Run;
+    raw_xml?: string;
+    error?: string;
+  };
+  error?: string;
 }

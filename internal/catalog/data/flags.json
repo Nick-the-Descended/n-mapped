@@ -1,0 +1,218 @@
+{
+  "schema_version": "0.1",
+  "categories": [
+    { "id": "host-discovery", "name": "Host Discovery", "description": "Decide which hosts are up before scanning ports.", "order": 10 },
+    { "id": "scan-techniques", "name": "Scan Techniques", "description": "How nmap probes TCP and UDP ports.", "order": 20 },
+    { "id": "port-spec", "name": "Port Specification", "description": "Which ports to scan, in what order, how many.", "order": 30 },
+    { "id": "service-detection", "name": "Service & Version Detection", "description": "Identify what's listening on each open port.", "order": 40 },
+    { "id": "os-detection", "name": "OS Detection", "description": "Fingerprint the remote operating system.", "order": 50 },
+    { "id": "timing", "name": "Timing & Performance", "description": "Trade speed against reliability and stealth.", "order": 60 },
+    { "id": "output", "name": "Output", "description": "Verbosity and reporting.", "order": 70 }
+  ],
+  "flags": [
+    {
+      "id": "ping-scan",
+      "short": "-sn",
+      "category": "host-discovery",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "mutually_exclusive_with": ["scan-type"],
+      "short_description": "Ping scan: which hosts are up (no port scan)",
+      "long_description": "Sends ICMP echo, TCP SYN to 443, TCP ACK to 80, and ICMP timestamp by default. Doesn't probe any ports — fastest way to map live hosts on a subnet.",
+      "examples": [
+        { "command": "nmap -sn 192.168.1.0/24", "explanation": "List every responsive host on your local /24." }
+      ],
+      "tags": ["discovery", "ping", "no-ports"]
+    },
+    {
+      "id": "skip-host-discovery",
+      "short": "-Pn",
+      "category": "host-discovery",
+      "value_type": "boolean",
+      "skill_level": "intermediate",
+      "short_description": "Treat all hosts as up (skip discovery)",
+      "long_description": "Useful when targets block ICMP or you already know they're online. Otherwise nmap may skip hosts it thinks are down.",
+      "tags": ["firewall", "no-ping"]
+    },
+    {
+      "id": "syn-scan",
+      "short": "-sS",
+      "category": "scan-techniques",
+      "value_type": "boolean",
+      "skill_level": "intermediate",
+      "requires_root": true,
+      "mutually_exclusive_with": ["scan-type"],
+      "short_description": "TCP SYN scan ('half-open')",
+      "long_description": "Sends a SYN, never completes the handshake. Faster and quieter than -sT, and the default when nmap runs as root. Requires raw-socket privileges.",
+      "examples": [
+        { "command": "sudo nmap -sS 192.168.1.1", "explanation": "Default fast TCP scan against a single host (run as root)." }
+      ],
+      "warnings": [
+        { "level": "info", "text": "Most IDS still log SYN scans. Use --scan-delay or -T2 for stealth." }
+      ],
+      "references": [
+        { "title": "Nmap docs: TCP SYN scan", "url": "https://nmap.org/book/synscan.html" }
+      ],
+      "tags": ["tcp", "default", "fast", "stealth"]
+    },
+    {
+      "id": "connect-scan",
+      "short": "-sT",
+      "category": "scan-techniques",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "mutually_exclusive_with": ["scan-type"],
+      "short_description": "TCP Connect scan (no root required)",
+      "long_description": "Asks the OS to fully open a TCP connection to each port. Slower and noisier than -sS, but works as an unprivileged user. The default when nmap is not run as root.",
+      "examples": [
+        { "command": "nmap -sT scanme.nmap.org", "explanation": "Standard TCP scan that works without sudo." }
+      ],
+      "tags": ["tcp", "no-root", "default"]
+    },
+    {
+      "id": "udp-scan",
+      "short": "-sU",
+      "category": "scan-techniques",
+      "value_type": "boolean",
+      "skill_level": "advanced",
+      "requires_root": true,
+      "short_description": "UDP scan",
+      "long_description": "Probes UDP ports. Slow, because closed UDP ports are silent and nmap must wait for ICMP unreachable replies. Pair with -sV for service identification.",
+      "warnings": [
+        { "level": "warn", "text": "UDP scans are slow — expect minutes per host." }
+      ],
+      "tags": ["udp"]
+    },
+    {
+      "id": "version-detect",
+      "short": "-sV",
+      "category": "service-detection",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "short_description": "Probe open ports to identify service / version",
+      "long_description": "After finding open ports, nmap sends service-specific probes (HTTP banners, SSH versions, etc.) to identify what's running. Adds time but transforms results from 'port 22 open' to 'OpenSSH 9.6'.",
+      "examples": [
+        { "command": "nmap -sV scanme.nmap.org", "explanation": "Standard scan plus service banners." }
+      ],
+      "tags": ["banner", "version", "fingerprint"]
+    },
+    {
+      "id": "os-detect",
+      "short": "-O",
+      "category": "os-detection",
+      "value_type": "boolean",
+      "skill_level": "intermediate",
+      "requires_root": true,
+      "short_description": "OS detection (TCP/IP fingerprinting)",
+      "long_description": "Compares responses to crafted probes against nmap's OS database to guess the remote operating system. Needs at least one open and one closed port to work well.",
+      "warnings": [
+        { "level": "info", "text": "Confidence varies — read the 'OS guess' percentage in the result." }
+      ],
+      "tags": ["fingerprint", "os"]
+    },
+    {
+      "id": "aggressive",
+      "short": "-A",
+      "category": "service-detection",
+      "value_type": "boolean",
+      "skill_level": "intermediate",
+      "requires_root": true,
+      "implies": ["version-detect", "os-detect"],
+      "short_description": "Aggressive: enables OS detection, version, scripts, traceroute",
+      "long_description": "Shorthand for -O -sV -sC --traceroute. The 'just give me everything' button. Loud — easy to detect.",
+      "warnings": [
+        { "level": "warn", "text": "Equivalent to running default scripts; some are intrusive. Don't use against systems you don't own." }
+      ],
+      "tags": ["everything", "loud"]
+    },
+    {
+      "id": "ports",
+      "short": "-p",
+      "category": "port-spec",
+      "value_type": "port-list",
+      "skill_level": "beginner",
+      "mutually_exclusive_with": ["port-range"],
+      "short_description": "Specify ports to scan",
+      "long_description": "Single ports, ranges, or comma-separated lists. Prefix with T: for TCP and U: for UDP when scanning both. Examples: 22, 1-1024, T:80,U:53.",
+      "examples": [
+        { "command": "nmap -p 80,443,8080 example.com", "explanation": "Scan three specific ports." },
+        { "command": "nmap -p 1-65535 192.168.1.1", "explanation": "All TCP ports — slow but exhaustive." }
+      ],
+      "tags": ["ports"]
+    },
+    {
+      "id": "fast-scan",
+      "short": "-F",
+      "category": "port-spec",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "mutually_exclusive_with": ["port-range"],
+      "short_description": "Fast scan: top 100 ports only",
+      "long_description": "Equivalent to --top-ports 100. A reasonable default when you want a quick look without scanning all 65,535 ports.",
+      "tags": ["fast", "top-100"]
+    },
+    {
+      "id": "top-ports",
+      "long": "--top-ports",
+      "category": "port-spec",
+      "value_type": "int",
+      "skill_level": "beginner",
+      "mutually_exclusive_with": ["port-range"],
+      "short_description": "Scan the N most common ports",
+      "long_description": "Uses nmap's nmap-services frequency data. --top-ports 1000 is the default behavior of nmap with no port flag.",
+      "examples": [
+        { "command": "nmap --top-ports 20 scanme.nmap.org", "explanation": "Quick first look at the 20 ports most likely to be open." }
+      ],
+      "tags": ["fast", "top"]
+    },
+    {
+      "id": "timing-template",
+      "short": "-T",
+      "category": "timing",
+      "value_type": "int",
+      "skill_level": "beginner",
+      "short_description": "Timing template (0=paranoid, 5=insane)",
+      "long_description": "Pre-baked timing presets. -T3 is the default. -T4 is a good speedup on reliable networks. -T5 trades reliability for speed and may miss results.",
+      "examples": [
+        { "command": "nmap -T4 192.168.1.0/24", "explanation": "Fast scan suitable for a LAN." }
+      ],
+      "warnings": [
+        { "level": "warn", "text": "-T4 / -T5 against external networks can trip rate-limits or be flagged as abuse." }
+      ],
+      "tags": ["speed", "timing"]
+    },
+    {
+      "id": "verbose",
+      "short": "-v",
+      "category": "output",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "short_description": "Verbose output",
+      "long_description": "Show progress info and intermediate findings as the scan runs. Stack -vv for even more.",
+      "tags": ["verbose", "progress"]
+    },
+    {
+      "id": "open-only",
+      "long": "--open",
+      "category": "output",
+      "value_type": "boolean",
+      "skill_level": "beginner",
+      "short_description": "Only show ports that are open",
+      "long_description": "Hides closed and filtered ports from the report — much easier to read on busy targets.",
+      "tags": ["filter", "concise"]
+    },
+    {
+      "id": "default-scripts",
+      "short": "-sC",
+      "category": "service-detection",
+      "value_type": "boolean",
+      "skill_level": "intermediate",
+      "short_description": "Run default NSE scripts",
+      "long_description": "Equivalent to --script default. Pulls in a curated set of safe-ish scripts that surface useful info on common services (HTTP titles, SSH host keys, SMB shares, etc.).",
+      "warnings": [
+        { "level": "info", "text": "'Default' is broadly safe but not guaranteed non-intrusive. Skim the categories you're enabling." }
+      ],
+      "tags": ["nse", "scripts"]
+    }
+  ]
+}

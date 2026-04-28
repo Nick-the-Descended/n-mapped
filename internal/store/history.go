@@ -21,16 +21,18 @@ import (
 
 // Record is the persisted history entry for a single scan.
 type Record struct {
-	ID       string    `json:"id"`
-	Display  string    `json:"display"`
-	Argv     []string  `json:"argv"`
-	Targets  []string  `json:"targets"`
-	FlagIDs  []string  `json:"flag_ids,omitempty"`
-	Started  time.Time `json:"started"`
-	Ended    time.Time `json:"ended"`
-	ExitCode int       `json:"exit_code"`
-	Result   *nmap.Result `json:"result,omitempty"`
-	Error    string    `json:"error,omitempty"`
+	ID         string            `json:"id"`
+	Display    string            `json:"display"`
+	Argv       []string          `json:"argv"`
+	Targets    []string          `json:"targets"`
+	FlagIDs    []string          `json:"flag_ids,omitempty"`
+	ScriptIDs  []string          `json:"script_ids,omitempty"`
+	ScriptArgs map[string]string `json:"script_args,omitempty"`
+	Started    time.Time         `json:"started"`
+	Ended      time.Time         `json:"ended"`
+	ExitCode   int               `json:"exit_code"`
+	Result     *nmap.Result      `json:"result,omitempty"`
+	Error      string            `json:"error,omitempty"`
 }
 
 // Summary is a slimmed Record used for the history list (no embedded
@@ -147,19 +149,21 @@ func (h *History) List(limit int) ([]Summary, error) {
 }
 
 // RecordFromResult builds a Record from a runner.Result. The runner already
-// carries the source request metadata (targets / flag_ids).
+// carries the source request metadata (targets / flag_ids / script_ids).
 func RecordFromResult(res nmap.Result) Record {
 	return Record{
-		ID:       res.ID,
-		Display:  res.Display,
-		Argv:     res.Argv,
-		Targets:  res.Targets,
-		FlagIDs:  res.FlagIDs,
-		Started:  res.Started,
-		Ended:    res.Ended,
-		ExitCode: res.ExitCode,
-		Result:   &res,
-		Error:    res.Error,
+		ID:         res.ID,
+		Display:    res.Display,
+		Argv:       res.Argv,
+		Targets:    res.Targets,
+		FlagIDs:    res.FlagIDs,
+		ScriptIDs:  res.ScriptIDs,
+		ScriptArgs: res.ScriptArgs,
+		Started:    res.Started,
+		Ended:      res.Ended,
+		ExitCode:   res.ExitCode,
+		Result:     &res,
+		Error:      res.Error,
 	}
 }
 

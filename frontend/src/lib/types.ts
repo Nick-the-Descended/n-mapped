@@ -46,10 +46,31 @@ export interface Category {
   order: number;
 }
 
+export interface ScriptArg {
+  name: string;
+  type: 'string' | 'int' | 'boolean';
+  default?: string;
+  description?: string;
+}
+
+export interface NSEScript {
+  id: string;
+  categories: string[];
+  skill_level: SkillLevel;
+  short_description: string;
+  long_description?: string;
+  args?: ScriptArg[];
+  examples?: Example[];
+  warnings?: Warning[];
+  references?: Reference[];
+  tags?: string[];
+}
+
 export interface Catalog {
   schema_version: string;
   categories: Category[];
   flags: Flag[];
+  scripts?: NSEScript[];
 }
 
 export type PrivilegeMode = 'user' | 'capability' | 'root';
@@ -77,6 +98,7 @@ export interface ScanRequest {
   flag_ids: string[];
   flag_values?: Record<string, string>;
   script_ids?: string[];
+  script_args?: Record<string, string>;
 }
 
 export interface ScanStartResponse {

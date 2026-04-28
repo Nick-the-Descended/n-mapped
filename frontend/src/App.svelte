@@ -4,6 +4,7 @@
   import TabBar from './components/TabBar.svelte';
   import TargetInput from './components/TargetInput.svelte';
   import FlagPicker from './components/FlagPicker.svelte';
+  import ScriptPicker from './components/ScriptPicker.svelte';
   import CommandPreview from './components/CommandPreview.svelte';
   import ScanRunner from './components/ScanRunner.svelte';
   import ResultsView from './components/ResultsView.svelte';
@@ -28,6 +29,8 @@
   let targets = $state('');
   let selected = $state<Set<string>>(new Set());
   let values = $state<Record<string, string>>({});
+  let scriptSelected = $state<Set<string>>(new Set());
+  let scriptArgs = $state<Record<string, string>>({});
 
   // Tab navigation.
   let activeTab = $state<'builder' | 'results' | 'history'>('builder');
@@ -60,7 +63,7 @@
   });
 
   let command = $derived(
-    catalog ? previewCommand(catalog.flags, targets, selected, values) : 'nmap …',
+    catalog ? previewCommand(catalog.flags, targets, selected, values, scriptSelected, scriptArgs) : 'nmap …',
   );
   let summary = $derived(
     catalog ? previewSummary(catalog.flags, selected) : 'loading catalog…',
@@ -70,6 +73,8 @@
     targets: targets.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean),
     flag_ids: [...selected],
     flag_values: { ...values },
+    script_ids: [...scriptSelected],
+    script_args: { ...scriptArgs },
   });
 
   let resultsCount = $derived.by(() => {
@@ -96,10 +101,18 @@
     historyRefreshKey++;
   }
 
-  function applyReverseParse(r: { targets: string; flagIDs: string[]; flagValues: Record<string, string> }) {
+  function applyReverseParse(r: {
+    targets: string;
+    flagIDs: string[];
+    flagValues: Record<string, string>;
+    scriptIDs: string[];
+    scriptArgs: Record<string, string>;
+  }) {
     targets = r.targets;
     selected = new Set(r.flagIDs);
     values = r.flagValues;
+    scriptSelected = new Set(r.scriptIDs);
+    scriptArgs = r.scriptArgs;
   }
 
   function openHistoryRecord(rec: HistoryRecord) {
@@ -112,6 +125,10 @@
     selected = new Set(rec.flag_ids ?? []);
     // Inline values aren't stored separately yet; user re-enters if needed.
     values = {};
+    const recScriptIDs = (rec as unknown as { script_ids?: string[] }).script_ids ?? [];
+    const recScriptArgs = (rec as unknown as { script_args?: Record<string, string> }).script_args ?? {};
+    scriptSelected = new Set(recScriptIDs);
+    scriptArgs = { ...recScriptArgs };
     activeTab = 'builder';
   }
 
@@ -153,6 +170,9 @@
       <ReverseParser flags={catalog.flags} onApply={applyReverseParse} />
       <TargetInput bind:value={targets} />
       <FlagPicker {catalog} {privilege} bind:selected bind:values />
+      {#if catalog.scripts && catalog.scripts.length > 0}
+        <ScriptPicker scripts={catalog.scripts} bind:selected={scriptSelected} bind:args={scriptArgs} />
+      {/if}
       <CommandPreview {command} {summary} />
       <ScanRunner
         {request}

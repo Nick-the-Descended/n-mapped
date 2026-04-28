@@ -7,7 +7,13 @@
     onApply,
   }: {
     flags: Flag[];
-    onApply: (r: { targets: string; flagIDs: string[]; flagValues: Record<string, string> }) => void;
+    onApply: (r: {
+      targets: string;
+      flagIDs: string[];
+      flagValues: Record<string, string>;
+      scriptIDs: string[];
+      scriptArgs: Record<string, string>;
+    }) => void;
   } = $props();
 
   let input = $state('');
@@ -22,6 +28,8 @@
       targets: preview.targets.join(' '),
       flagIDs: preview.flagIDs,
       flagValues: preview.flagValues,
+      scriptIDs: preview.scriptIDs,
+      scriptArgs: preview.scriptArgs,
     });
     input = '';
   }
@@ -42,16 +50,28 @@
           <span>{preview.targets.length ? preview.targets.join(', ') : '(none)'}</span>
         </div>
         <div class="row">
-          <span class="label">Recognized</span>
+          <span class="label">Recognized flags</span>
           <span>{preview.flagIDs.length ? preview.flagIDs.join(', ') : '(none)'}</span>
         </div>
+        {#if preview.scriptIDs.length > 0}
+          <div class="row">
+            <span class="label">Scripts</span>
+            <span>{preview.scriptIDs.join(', ')}</span>
+          </div>
+        {/if}
+        {#if Object.keys(preview.scriptArgs).length > 0}
+          <div class="row">
+            <span class="label">Script args</span>
+            <span>{Object.entries(preview.scriptArgs).map(([k, v]) => `${k}=${v}`).join(', ')}</span>
+          </div>
+        {/if}
         {#if preview.unrecognized.length > 0}
           <div class="row warn">
             <span class="label">Unknown tokens</span>
             <span>{preview.unrecognized.join(' ')}</span>
           </div>
         {/if}
-        <button class="primary" onclick={apply} disabled={preview.flagIDs.length === 0 && preview.targets.length === 0}>
+        <button class="primary" onclick={apply} disabled={preview.flagIDs.length === 0 && preview.targets.length === 0 && preview.scriptIDs.length === 0}>
           Apply to builder
         </button>
       </div>

@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1",
+  "scripts": [
+    {
+      "id": "http-title",
+      "categories": ["default", "discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "Show the <title> of the home page on each HTTP/HTTPS service",
+      "long_description": "Connects to detected web servers and reports the page title — a quick way to see what's running. Pulled in automatically when you select 'default scripts'.",
+      "tags": ["http", "web", "title"]
+    },
+    {
+      "id": "http-headers",
+      "categories": ["discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "List HTTP response headers (Server, X-Powered-By, etc.)",
+      "long_description": "Useful for fingerprinting the web stack: which server software, which framework, any obvious version disclosure.",
+      "tags": ["http", "headers"]
+    },
+    {
+      "id": "ssh-hostkey",
+      "categories": ["default", "safe", "discovery"],
+      "skill_level": "beginner",
+      "short_description": "Grab SSH host key fingerprints",
+      "long_description": "Collects the host key types and fingerprints. Handy for inventorying SSH servers or detecting key changes (man-in-the-middle indicator).",
+      "args": [
+        { "name": "ssh_hostkey", "type": "string", "default": "hex", "description": "Output format: hex, full, sha1, sha256, mr (machine-readable)" }
+      ],
+      "tags": ["ssh", "fingerprint"]
+    },
+    {
+      "id": "ssh-auth-methods",
+      "categories": ["auth", "safe", "discovery"],
+      "skill_level": "intermediate",
+      "short_description": "List authentication methods accepted by an SSH server",
+      "long_description": "Tells you whether the server allows password auth, publickey, keyboard-interactive, etc. — useful when planning credentialed access without actually attempting login.",
+      "tags": ["ssh", "auth"]
+    },
+    {
+      "id": "smb-os-discovery",
+      "categories": ["default", "discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "Identify the OS of an SMB server (Windows version, domain, NetBIOS)",
+      "long_description": "Talks SMB to the host and surfaces the OS, computer name, NetBIOS name, domain or workgroup, and system time. Often the fastest way to find Windows boxes on a LAN.",
+      "tags": ["smb", "windows"]
+    },
+    {
+      "id": "smb-protocols",
+      "categories": ["safe", "discovery"],
+      "skill_level": "intermediate",
+      "short_description": "List the SMB dialects a host supports (SMB1/2/3)",
+      "long_description": "Useful for detecting hosts still speaking deprecated SMB1 — a frequent finding in enterprise environments and a known security risk.",
+      "tags": ["smb", "windows", "dialects"]
+    },
+    {
+      "id": "ssl-cert",
+      "categories": ["default", "safe", "discovery"],
+      "skill_level": "beginner",
+      "short_description": "Retrieve TLS/SSL certificate details (CN, SANs, issuer, expiry)",
+      "long_description": "Dumps the X.509 certificate served on each TLS port: subject, subject alternative names, issuer, validity dates, signature algorithm. Great for spotting expiring certs or wildcards.",
+      "tags": ["tls", "ssl", "cert"]
+    },
+    {
+      "id": "ssl-enum-ciphers",
+      "categories": ["safe", "discovery"],
+      "skill_level": "intermediate",
+      "short_description": "Enumerate the TLS cipher suites accepted by a server, with strength grades",
+      "long_description": "Negotiates handshakes against the server to enumerate supported protocols, ciphers, and elliptic curves. Outputs a quality grade for each. Slower than ssl-cert.",
+      "tags": ["tls", "ciphers", "compliance"]
+    },
+    {
+      "id": "vulners",
+      "categories": ["vuln"],
+      "skill_level": "intermediate",
+      "short_description": "Look up CVEs for detected service versions in the Vulners database",
+      "long_description": "Reads the version detected by -sV and queries vulners.com for known CVEs. Output includes CVE IDs, CVSS scores, and links — a great first pass at vuln assessment.",
+      "warnings": [
+        { "level": "info", "text": "Sends queries to api.vulners.com. Don't run on air-gapped or sensitive networks where outbound traffic is restricted." }
+      ],
+      "tags": ["vuln", "cve", "external"]
+    },
+    {
+      "id": "ftp-anon",
+      "categories": ["default", "auth", "safe"],
+      "skill_level": "beginner",
+      "short_description": "Check whether the FTP server allows anonymous login",
+      "long_description": "Attempts an anonymous login and lists the root directory if successful. Common finding on misconfigured legacy FTP servers.",
+      "tags": ["ftp", "auth"]
+    },
+    {
+      "id": "ftp-vsftpd-backdoor",
+      "categories": ["exploit", "intrusive", "vuln"],
+      "skill_level": "advanced",
+      "short_description": "Test for the vsftpd 2.3.4 backdoor (CVE-2011-2523)",
+      "long_description": "Triggers the smiley-face backdoor in vsftpd 2.3.4 to confirm vulnerability. Actually attempts the exploit — the script opens a shell on port 6200 if successful.",
+      "warnings": [
+        { "level": "danger", "text": "Intrusive — actually attempts the exploit. Only run against systems you own or have explicit authorization to test." }
+      ],
+      "tags": ["ftp", "exploit", "cve"]
+    },
+    {
+      "id": "mysql-info",
+      "categories": ["default", "discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "MySQL server version, capabilities, and connection salt",
+      "long_description": "Connects to the MySQL handshake (no login) and surfaces the protocol version, server version string, supported capabilities, and the auth-plugin name. Non-intrusive.",
+      "tags": ["mysql", "banner"]
+    },
+    {
+      "id": "dns-brute",
+      "categories": ["intrusive", "discovery"],
+      "skill_level": "intermediate",
+      "short_description": "Brute-force common DNS subdomains against a domain",
+      "long_description": "Queries a wordlist of typical subdomain names against the target's authoritative DNS. Useful for asset discovery; can be noisy and DNS providers may rate-limit.",
+      "warnings": [
+        { "level": "warn", "text": "Generates many DNS queries. Use only against domains you own or that explicitly permit it." }
+      ],
+      "args": [
+        { "name": "dns-brute.threads", "type": "int", "default": "5", "description": "Concurrent queries (1–8 typical)" },
+        { "name": "dns-brute.hostlist", "type": "string", "description": "Path to a custom subdomain wordlist" },
+        { "name": "dns-brute.domain", "type": "string", "description": "Domain to brute (defaults to the target)" }
+      ],
+      "tags": ["dns", "brute"]
+    },
+    {
+      "id": "banner",
+      "categories": ["discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "Grab the welcome banner emitted by open ports (FTP, telnet, SMTP, etc.)",
+      "long_description": "Reads the first response chunk from each open port. Cheap and harmless; useful when -sV is overkill.",
+      "tags": ["banner"]
+    },
+    {
+      "id": "whois-domain",
+      "categories": ["external", "discovery", "safe"],
+      "skill_level": "beginner",
+      "short_description": "WHOIS lookup for the target's domain (registration data)",
+      "long_description": "Performs a WHOIS query to retrieve domain registration metadata. Talks to external WHOIS servers — same caveat as vulners.",
+      "warnings": [
+        { "level": "info", "text": "Sends queries to external WHOIS servers; not appropriate for air-gapped environments." }
+      ],
+      "tags": ["whois", "external"]
+    }
+  ]
+}

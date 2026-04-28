@@ -48,17 +48,19 @@ type Event struct {
 
 // Result is the consolidated record persisted on scan completion.
 type Result struct {
-	ID       string    `json:"id"`
-	Argv     []string  `json:"argv"`
-	Display  string    `json:"display"`
-	Targets  []string  `json:"targets,omitempty"`
-	FlagIDs  []string  `json:"flag_ids,omitempty"`
-	Started  time.Time `json:"started"`
-	Ended    time.Time `json:"ended"`
-	ExitCode int       `json:"exit_code"`
-	Run      *Run      `json:"run,omitempty"`     // structured nmap output (nil if scan failed before parse)
-	RawXML   []byte    `json:"raw_xml,omitempty"` // full XML bytes for export
-	Error    string    `json:"error,omitempty"`
+	ID         string            `json:"id"`
+	Argv       []string          `json:"argv"`
+	Display    string            `json:"display"`
+	Targets    []string          `json:"targets,omitempty"`
+	FlagIDs    []string          `json:"flag_ids,omitempty"`
+	ScriptIDs  []string          `json:"script_ids,omitempty"`
+	ScriptArgs map[string]string `json:"script_args,omitempty"`
+	Started    time.Time         `json:"started"`
+	Ended      time.Time         `json:"ended"`
+	ExitCode   int               `json:"exit_code"`
+	Run        *Run              `json:"run,omitempty"`     // structured nmap output (nil if scan failed before parse)
+	RawXML     []byte            `json:"raw_xml,omitempty"` // full XML bytes for export
+	Error      string            `json:"error,omitempty"`
 }
 
 // Hook is invoked by the runner exactly once when a scan finishes (success
@@ -192,16 +194,18 @@ func (s *Scan) Result() Result {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := Result{
-		ID:       s.ID,
-		Argv:     s.Built.Argv,
-		Display:  s.Built.Display,
-		Targets:  s.Built.Targets,
-		FlagIDs:  s.Built.FlagIDs,
-		Started:  s.Started,
-		Ended:    s.finishedAt,
-		ExitCode: s.exitCode,
-		Run:      s.runDone,
-		RawXML:   s.rawXML,
+		ID:         s.ID,
+		Argv:       s.Built.Argv,
+		Display:    s.Built.Display,
+		Targets:    s.Built.Targets,
+		FlagIDs:    s.Built.FlagIDs,
+		ScriptIDs:  s.Built.ScriptIDs,
+		ScriptArgs: s.Built.ScriptArgs,
+		Started:    s.Started,
+		Ended:      s.finishedAt,
+		ExitCode:   s.exitCode,
+		Run:        s.runDone,
+		RawXML:     s.rawXML,
 	}
 	if s.parseErr != nil {
 		res.Error = s.parseErr.Error()

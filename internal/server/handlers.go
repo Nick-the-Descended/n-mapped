@@ -61,6 +61,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, _ *http.Request) {
 		"schema_version": s.opts.Catalog.SchemaVersion,
 		"categories":     s.opts.Catalog.Categories,
 		"flags":          s.opts.Catalog.Flags,
+		"scripts":        s.opts.Catalog.Scripts,
 	})
 }
 

@@ -20,7 +20,14 @@ export const builder: BuilderState = {
 };
 
 // Build the canonical command preview from the current builder state.
-export function previewCommand(allFlags: Flag[], targets: string, selected: Set<string>, values: Record<string, string>): string {
+export function previewCommand(
+  allFlags: Flag[],
+  targets: string,
+  selected: Set<string>,
+  values: Record<string, string>,
+  scriptIDs: Set<string> = new Set(),
+  scriptArgs: Record<string, string> = {},
+): string {
   const parts: string[] = ['nmap'];
   const sorted = [...selected].sort();
   for (const id of sorted) {
@@ -34,6 +41,15 @@ export function previewCommand(allFlags: Flag[], targets: string, selected: Set<
       if (v) parts.push(v);
       else parts.push('<value>');
     }
+  }
+  if (scriptIDs.size > 0) {
+    parts.push('--script', [...scriptIDs].sort().join(','));
+  }
+  const argEntries = Object.entries(scriptArgs)
+    .filter(([, v]) => v !== '')
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (argEntries.length > 0) {
+    parts.push('--script-args', argEntries.map(([k, v]) => `${k}=${v}`).join(','));
   }
   parts.push('-oX', '-');
   parts.push('--stats-every', '2s');
@@ -66,15 +82,18 @@ export function previewSummary(allFlags: Flag[], selected: Set<string>): string 
 export interface ParseResult {
   flagIDs: string[];
   flagValues: Record<string, string>;
+  scriptIDs: string[];
+  scriptArgs: Record<string, string>;
   targets: string[];
   unrecognized: string[];
 }
 
-const SKIP_FLAGS = new Set([
+// Flags that take a value; we skip the flag and consume the next token.
+const SKIP_FLAGS_WITH_VALUE = new Set([
   '-oX', '-oG', '-oA', '-oN', '-oS', // output format flags we always inject
   '--stats-every',                    // injected automatically
-  '--', '-',                          // separators / stdout marker
 ]);
+const SKIP_FLAGS = new Set(['-', '--']);
 
 // Tokenize a shell-style command line. Single and double quotes preserve
 // whitespace; backslashes are passed through. Good enough for a paste-and-
@@ -129,7 +148,9 @@ function matchFlag(token: string, allFlags: Flag[]): { flag: Flag; inlineValue?:
 
 export function parseCommand(input: string, allFlags: Flag[]): ParseResult {
   const tokens = tokenize(input.trim());
-  const result: ParseResult = { flagIDs: [], flagValues: {}, targets: [], unrecognized: [] };
+  const result: ParseResult = {
+    flagIDs: [], flagValues: {}, scriptIDs: [], scriptArgs: {}, targets: [], unrecognized: [],
+  };
   const seen = new Set<string>();
 
   // Drop the leading "nmap" if present.
@@ -146,13 +167,28 @@ export function parseCommand(input: string, allFlags: Flag[]): ParseResult {
       result.targets.push(tok);
       continue;
     }
-    if (SKIP_FLAGS.has(tok)) {
-      // Some skip flags consume the next token as a value (e.g. --stats-every 2s, -oX -).
-      if (tok === '--stats-every' || tok === '-oX' || tok === '-oG' || tok === '-oA' || tok === '-oN' || tok === '-oS') {
-        i++;
+    if (SKIP_FLAGS_WITH_VALUE.has(tok)) { i++; continue; }
+    if (SKIP_FLAGS.has(tok)) continue;
+
+    // --script <list> or --script=<list>
+    if (tok === '--script' || tok.startsWith('--script=')) {
+      const list = tok.startsWith('--script=') ? tok.slice('--script='.length) : tokens[++i] ?? '';
+      for (const id of list.split(',').map((s) => s.trim()).filter(Boolean)) {
+        if (!result.scriptIDs.includes(id)) result.scriptIDs.push(id);
       }
       continue;
     }
+    // --script-args k1=v1,k2=v2
+    if (tok === '--script-args' || tok.startsWith('--script-args=')) {
+      const blob = tok.startsWith('--script-args=') ? tok.slice('--script-args='.length) : tokens[++i] ?? '';
+      for (const pair of blob.split(',').map((s) => s.trim()).filter(Boolean)) {
+        const eq = pair.indexOf('=');
+        if (eq <= 0) continue;
+        result.scriptArgs[pair.slice(0, eq)] = pair.slice(eq + 1);
+      }
+      continue;
+    }
+
     if (!tok.startsWith('-')) {
       // Bare token — almost always a target.
       result.targets.push(tok);

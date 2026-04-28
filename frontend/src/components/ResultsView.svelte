@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ProgressBar from './ProgressBar.svelte';
   import type { Host, RunStats, ScanInfo, TaskProgress } from '../lib/types';
 
   let {
@@ -56,8 +57,6 @@
       <span class="pill ok">{runstats.hosts.up} up</span>
       <span class="pill">{runstats.hosts.total} scanned</span>
       <span class="pill">elapsed {runstats.finished.elapsed.toFixed(1)}s</span>
-    {:else if progress}
-      <span class="pill accent">{(progress.percent ?? 0).toFixed(1)}% — {progress.task ?? 'scanning'}</span>
     {:else if hosts.length > 0}
       <span class="pill accent">{hosts.length} host{hosts.length === 1 ? '' : 's'} so far…</span>
     {/if}
@@ -65,6 +64,8 @@
       <span class="pill">{si.protocol.toUpperCase()} {si.type}</span>
     {/each}
   </div>
+
+  <ProgressBar progress={progress} finished={runstats !== null} />
 
   <div class="filters">
     <input type="text" placeholder="Filter hosts / ports / services…" bind:value={filter} />

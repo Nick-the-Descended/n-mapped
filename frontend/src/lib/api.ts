@@ -1,5 +1,6 @@
 import type {
   Catalog,
+  Favorite,
   HistoryRecord,
   HistorySummary,
   NmapInfo,
@@ -57,6 +58,9 @@ export const api = {
   historyRecord: (id: string) => getJSON<HistoryRecord>(`/api/history/${id}`),
   historyDelete: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/history/${id}`),
   historyXmlURL: (id: string) => `/api/history/${id}/xml`,
+  favorites: () => getJSON<Favorite[]>('/api/favorites'),
+  saveFavorite: (fav: Partial<Favorite>) => postJSON<Favorite>('/api/favorites', fav),
+  deleteFavorite: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/favorites/${id}`),
 };
 
 // streamScan opens an SSE connection for the given scan id and invokes

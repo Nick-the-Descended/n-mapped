@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
+	"github.com/nick-the-descended/n-mapped/internal/store"
 )
 
 func (s *Server) routes() error {
@@ -28,6 +29,8 @@ func (s *Server) routes() error {
 	s.mux.HandleFunc("/api/scans/", s.handleScanItem)
 	s.mux.HandleFunc("/api/history", s.handleHistoryList)
 	s.mux.HandleFunc("/api/history/", s.handleHistoryItem)
+	s.mux.HandleFunc("/api/favorites", s.handleFavoritesCollection)
+	s.mux.HandleFunc("/api/favorites/", s.handleFavoriteItem)
 	return nil
 }
 
@@ -62,6 +65,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, _ *http.Request) {
 		"categories":     s.opts.Catalog.Categories,
 		"flags":          s.opts.Catalog.Flags,
 		"scripts":        s.opts.Catalog.Scripts,
+		"profiles":       s.opts.Catalog.Profiles,
 	})
 }
 
@@ -233,6 +237,75 @@ func (s *Server) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, rec)
 	case http.MethodDelete:
 		if err := s.opts.History.Delete(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	default:
+		w.Header().Set("Allow", "GET, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
+	}
+}
+
+// GET  /api/favorites      list
+// POST /api/favorites      create or update
+func (s *Server) handleFavoritesCollection(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Favorites == nil {
+		writeError(w, http.StatusNotFound, "favorites disabled")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		list, err := s.opts.Favorites.List()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	case http.MethodPost:
+		var fav store.Favorite
+		if err := json.NewDecoder(r.Body).Decode(&fav); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+		saved, err := s.opts.Favorites.Save(fav)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeError(w, http.StatusMethodNotAllowed, "GET or POST required")
+	}
+}
+
+// GET    /api/favorites/{id}    get
+// DELETE /api/favorites/{id}    delete
+func (s *Server) handleFavoriteItem(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Favorites == nil {
+		writeError(w, http.StatusNotFound, "favorites disabled")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/favorites/")
+	if id == "" {
+		writeError(w, http.StatusNotFound, "expected /api/favorites/{id}")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		fav, err := s.opts.Favorites.Get(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if fav == nil {
+			writeError(w, http.StatusNotFound, "no such favorite")
+			return
+		}
+		writeJSON(w, http.StatusOK, fav)
+	case http.MethodDelete:
+		if err := s.opts.Favorites.Delete(id); err != nil {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}

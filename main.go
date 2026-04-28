@@ -79,15 +79,20 @@ func run(bind, nmapPath string, privileged, noBrowser bool) error {
 	if err != nil {
 		return fmt.Errorf("opening history store: %w", err)
 	}
+	favs, err := store.NewFavorites(dataDir)
+	if err != nil {
+		return fmt.Errorf("opening favorites store: %w", err)
+	}
 
 	srv, err := server.New(server.Options{
-		Bind:     bind,
-		NmapPath: nmapPath,
-		Catalog:  cat,
-		NmapInfo: info,
-		Privs:    priv,
-		Runner:   nmap.NewRunner(),
-		History:  hist,
+		Bind:      bind,
+		NmapPath:  nmapPath,
+		Catalog:   cat,
+		NmapInfo:  info,
+		Privs:     priv,
+		Runner:    nmap.NewRunner(),
+		History:   hist,
+		Favorites: favs,
 	})
 	if err != nil {
 		return err

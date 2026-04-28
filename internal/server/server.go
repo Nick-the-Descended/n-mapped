@@ -17,13 +17,14 @@ import (
 
 // Options bundles everything the server needs at construction time.
 type Options struct {
-	Bind     string // e.g. "127.0.0.1:8765"
-	NmapPath string // override for the nmap binary; "" means PATH lookup
-	Catalog  *catalog.Catalog
-	NmapInfo nmap.Info
-	Privs    auth.State
-	Runner   *nmap.Runner
-	History  *store.History
+	Bind      string // e.g. "127.0.0.1:8765"
+	NmapPath  string // override for the nmap binary; "" means PATH lookup
+	Catalog   *catalog.Catalog
+	NmapInfo  nmap.Info
+	Privs     auth.State
+	Runner    *nmap.Runner
+	History   *store.History
+	Favorites *store.Favorites
 }
 
 // Server is an http.Handler plus the lifecycle hooks for graceful shutdown.

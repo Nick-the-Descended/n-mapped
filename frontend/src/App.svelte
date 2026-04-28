@@ -12,7 +12,10 @@
   import Glossary from './components/Glossary.svelte';
   import EthicalUseSplash from './components/EthicalUseSplash.svelte';
   import ReverseParser from './components/ReverseParser.svelte';
+  import ProfilesAndFavorites from './components/ProfilesAndFavorites.svelte';
+  import NotifyToggle from './components/NotifyToggle.svelte';
   import { api } from './lib/api';
+  import { notify } from './lib/notify';
   import type {
     Catalog, Host, HistoryRecord, NmapInfo, PrivilegeState, RunStats,
     ScanInfo, ScanRequest, TaskProgress,
@@ -97,8 +100,21 @@
     liveProgress = state.progress;
   }
 
-  function handleScanDone() {
+  function handleScanDone(_id: string, exitCode: number, error: string | null) {
     historyRefreshKey++;
+    if (resultSource.kind === 'live') {
+      const targetSummary = (resultSource.display ?? '').split('--').pop()?.trim() ?? 'scan';
+      const upCount = liveRunstats?.hosts.up ?? liveHosts.length;
+      const openCount = liveHosts.reduce(
+        (n, h) => n + (h.ports?.ports?.filter((p) => p.state.state === 'open').length ?? 0),
+        0,
+      );
+      const title = error
+        ? 'n-mapped: scan failed'
+        : `n-mapped: scan ${exitCode === 0 ? 'done' : 'finished with errors'}`;
+      const body = error ?? `${upCount} host${upCount === 1 ? '' : 's'} up, ${openCount} open port${openCount === 1 ? '' : 's'} on ${targetSummary}`;
+      notify(title, body);
+    }
   }
 
   function applyReverseParse(r: {
@@ -113,6 +129,17 @@
     values = r.flagValues;
     scriptSelected = new Set(r.scriptIDs);
     scriptArgs = r.scriptArgs;
+  }
+
+  // Same shape as applyReverseParse, used by profile/favorite cards.
+  function applyTemplate(r: {
+    targets: string;
+    flagIDs: string[];
+    flagValues: Record<string, string>;
+    scriptIDs: string[];
+    scriptArgs: Record<string, string>;
+  }) {
+    applyReverseParse(r);
   }
 
   function openHistoryRecord(rec: HistoryRecord) {
@@ -168,6 +195,15 @@
 
     {#if activeTab === 'builder'}
       <ReverseParser flags={catalog.flags} onApply={applyReverseParse} />
+      <ProfilesAndFavorites
+        profiles={catalog.profiles ?? []}
+        currentTargets={targets}
+        currentFlagIDs={[...selected]}
+        currentFlagValues={values}
+        currentScriptIDs={[...scriptSelected]}
+        currentScriptArgs={scriptArgs}
+        onApply={applyTemplate}
+      />
       <TargetInput bind:value={targets} />
       <FlagPicker {catalog} {privilege} bind:selected bind:values />
       {#if catalog.scripts && catalog.scripts.length > 0}

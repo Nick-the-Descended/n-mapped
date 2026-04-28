@@ -66,11 +66,39 @@ export interface NSEScript {
   tags?: string[];
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  description?: string;
+  skill_level: SkillLevel;
+  icon?: string;
+  needs_root?: boolean;
+  flag_ids?: string[];
+  flag_values?: Record<string, string>;
+  script_ids?: string[];
+  script_args?: Record<string, string>;
+}
+
 export interface Catalog {
   schema_version: string;
   categories: Category[];
   flags: Flag[];
   scripts?: NSEScript[];
+  profiles?: Profile[];
+}
+
+export interface Favorite {
+  id: string;
+  name: string;
+  description?: string;
+  targets?: string;
+  flag_ids?: string[];
+  flag_values?: Record<string, string>;
+  script_ids?: string[];
+  script_args?: Record<string, string>;
+  tags?: string[];
+  created_at: string;
+  updated_at: string;
 }
 
 export type PrivilegeMode = 'user' | 'capability' | 'root';

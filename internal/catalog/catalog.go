@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-//go:embed data/flags.json data/scripts.json
+//go:embed data/flags.json data/scripts.json data/profiles.json
 var embedded embed.FS
 
 // Flag describes one nmap flag the UI exposes.
@@ -70,6 +70,25 @@ type scriptsFile struct {
 	Scripts       []Script `json:"scripts"`
 }
 
+type profilesFile struct {
+	SchemaVersion string    `json:"schema_version"`
+	Profiles      []Profile `json:"profiles"`
+}
+
+// Profile is a built-in preset that pre-fills the builder.
+type Profile struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	SkillLevel  string            `json:"skill_level"`
+	Icon        string            `json:"icon,omitempty"`
+	NeedsRoot   bool              `json:"needs_root,omitempty"`
+	FlagIDs     []string          `json:"flag_ids,omitempty"`
+	FlagValues  map[string]string `json:"flag_values,omitempty"`
+	ScriptIDs   []string          `json:"script_ids,omitempty"`
+	ScriptArgs  map[string]string `json:"script_args,omitempty"`
+}
+
 // Script describes one NSE script the UI exposes. Mirrors the flag schema
 // where it makes sense, but adds NSE-specific fields (categories, args).
 type Script struct {
@@ -99,6 +118,7 @@ type Catalog struct {
 	Categories    []Category
 	Flags         []Flag
 	Scripts       []Script
+	Profiles      []Profile
 	byID          map[string]*Flag
 	byScriptID    map[string]*Script
 }
@@ -123,11 +143,21 @@ func Load() (*Catalog, error) {
 		return nil, fmt.Errorf("parsing scripts catalog: %w", err)
 	}
 
+	profilesData, err := embedded.ReadFile("data/profiles.json")
+	if err != nil {
+		return nil, fmt.Errorf("reading embedded profiles: %w", err)
+	}
+	var pf profilesFile
+	if err := json.Unmarshal(profilesData, &pf); err != nil {
+		return nil, fmt.Errorf("parsing profiles: %w", err)
+	}
+
 	c := &Catalog{
 		SchemaVersion: f.SchemaVersion,
 		Categories:    f.Categories,
 		Flags:         f.Flags,
 		Scripts:       sf.Scripts,
+		Profiles:      pf.Profiles,
 		byID:          make(map[string]*Flag, len(f.Flags)),
 		byScriptID:    make(map[string]*Script, len(sf.Scripts)),
 	}

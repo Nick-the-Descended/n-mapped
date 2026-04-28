@@ -1,14 +1,17 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
+	"github.com/nick-the-descended/n-mapped/internal/store"
 )
 
 func (s *Server) routes() error {
@@ -24,6 +27,10 @@ func (s *Server) routes() error {
 	s.mux.HandleFunc("/api/catalog", s.handleCatalog)
 	s.mux.HandleFunc("/api/scans", s.handleScansCollection)
 	s.mux.HandleFunc("/api/scans/", s.handleScanItem)
+	s.mux.HandleFunc("/api/history", s.handleHistoryList)
+	s.mux.HandleFunc("/api/history/", s.handleHistoryItem)
+	s.mux.HandleFunc("/api/favorites", s.handleFavoritesCollection)
+	s.mux.HandleFunc("/api/favorites/", s.handleFavoriteItem)
 	return nil
 }
 
@@ -57,6 +64,8 @@ func (s *Server) handleCatalog(w http.ResponseWriter, _ *http.Request) {
 		"schema_version": s.opts.Catalog.SchemaVersion,
 		"categories":     s.opts.Catalog.Categories,
 		"flags":          s.opts.Catalog.Flags,
+		"scripts":        s.opts.Catalog.Scripts,
+		"profiles":       s.opts.Catalog.Profiles,
 	})
 }
 
@@ -81,7 +90,9 @@ func (s *Server) handleScansCollection(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusFailedDependency, "nmap not detected: "+s.opts.NmapInfo.Error)
 		return
 	}
-	scan, err := s.opts.Runner.Start(r.Context(), built)
+	// Detach from the request context: when the POST returns 202 the request
+	// context cancels, and we don't want that to kill the running scan.
+	scan, err := s.opts.Runner.Start(context.Background(), built)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -164,6 +175,144 @@ func (s *Server) streamEvents(w http.ResponseWriter, r *http.Request, scan *nmap
 		case <-r.Context().Done():
 			return
 		}
+	}
+}
+
+// GET /api/history?limit=N — list summaries newest-first.
+func (s *Server) handleHistoryList(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	limit := 0
+	if q := r.URL.Query().Get("limit"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n >= 0 {
+			limit = n
+		}
+	}
+	list, err := s.opts.History.List(limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+// GET    /api/history/{id}     — full record
+// DELETE /api/history/{id}     — remove record
+// GET    /api/history/{id}/xml — raw nmap XML (text/xml)
+func (s *Server) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeError(w, http.StatusNotFound, "history disabled")
+		return
+	}
+	rest := strings.TrimPrefix(r.URL.Path, "/api/history/")
+	if rest == "" {
+		writeError(w, http.StatusNotFound, "expected /api/history/{id}")
+		return
+	}
+	parts := strings.SplitN(rest, "/", 2)
+	id := parts[0]
+	rec, err := s.opts.History.Get(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if rec == nil {
+		writeError(w, http.StatusNotFound, "no such record")
+		return
+	}
+	if len(parts) == 2 && parts[1] == "xml" {
+		if rec.Result == nil || len(rec.Result.RawXML) == 0 {
+			writeError(w, http.StatusNotFound, "no XML stored for this record")
+			return
+		}
+		w.Header().Set("Content-Type", "text/xml; charset=utf-8")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+id+".xml\"")
+		_, _ = w.Write(rec.Result.RawXML)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		writeJSON(w, http.StatusOK, rec)
+	case http.MethodDelete:
+		if err := s.opts.History.Delete(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	default:
+		w.Header().Set("Allow", "GET, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
+	}
+}
+
+// GET  /api/favorites      list
+// POST /api/favorites      create or update
+func (s *Server) handleFavoritesCollection(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Favorites == nil {
+		writeError(w, http.StatusNotFound, "favorites disabled")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		list, err := s.opts.Favorites.List()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, list)
+	case http.MethodPost:
+		var fav store.Favorite
+		if err := json.NewDecoder(r.Body).Decode(&fav); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+		saved, err := s.opts.Favorites.Save(fav)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeError(w, http.StatusMethodNotAllowed, "GET or POST required")
+	}
+}
+
+// GET    /api/favorites/{id}    get
+// DELETE /api/favorites/{id}    delete
+func (s *Server) handleFavoriteItem(w http.ResponseWriter, r *http.Request) {
+	if s.opts.Favorites == nil {
+		writeError(w, http.StatusNotFound, "favorites disabled")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/favorites/")
+	if id == "" {
+		writeError(w, http.StatusNotFound, "expected /api/favorites/{id}")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet, "":
+		fav, err := s.opts.Favorites.Get(id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if fav == nil {
+			writeError(w, http.StatusNotFound, "no such favorite")
+			return
+		}
+		writeJSON(w, http.StatusOK, fav)
+	case http.MethodDelete:
+		if err := s.opts.Favorites.Delete(id); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	default:
+		w.Header().Set("Allow", "GET, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
 	}
 }
 

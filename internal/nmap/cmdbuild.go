@@ -15,11 +15,13 @@ import (
 // Request is what the frontend POSTs to /api/scans. It contains only flag IDs
 // (not raw argv) so user input can never inject arbitrary nmap arguments.
 type Request struct {
-	Targets    []string                  `json:"targets"`
-	FlagIDs    []string                  `json:"flag_ids"`
-	FlagValues map[string]string         `json:"flag_values,omitempty"` // flag_id -> stringified value for non-boolean flags
-	ScriptIDs  []string                  `json:"script_ids,omitempty"`
-	ScriptArgs map[string]map[string]any `json:"script_args,omitempty"`
+	Targets    []string          `json:"targets"`
+	FlagIDs    []string          `json:"flag_ids"`
+	FlagValues map[string]string `json:"flag_values,omitempty"` // flag_id -> stringified value for non-boolean flags
+	ScriptIDs  []string          `json:"script_ids,omitempty"`
+	// ScriptArgs is a flat map of "<scriptid>.<argname>" -> value, e.g.
+	// {"dns-brute.threads": "8"}. The frontend constructs the keys.
+	ScriptArgs map[string]string `json:"script_args,omitempty"`
 }
 
 // Built is the validated, materialized command ready to hand to os/exec.
@@ -27,6 +29,11 @@ type Built struct {
 	Argv      []string `json:"argv"`        // includes the binary path at [0]
 	Display   string   `json:"display"`     // shell-quoted form for the UI command preview
 	NeedsRoot bool     `json:"needs_root"`
+	// Source request metadata preserved through to history.
+	Targets   []string          `json:"targets"`
+	FlagIDs   []string          `json:"flag_ids"`
+	ScriptIDs []string          `json:"script_ids,omitempty"`
+	ScriptArgs map[string]string `json:"script_args,omitempty"`
 }
 
 // Build validates a Request against the catalog and the current privilege
@@ -93,6 +100,47 @@ func Build(req Request, cat *catalog.Catalog, info Info, priv auth.State) (Built
 		}
 	}
 
+	// NSE script selection. Validate every requested script is in the catalog
+	// before passing it to nmap so unknown ids never reach the CLI.
+	scriptIDs := append([]string(nil), req.ScriptIDs...)
+	sort.Strings(scriptIDs)
+	if len(scriptIDs) > 0 {
+		for _, sid := range scriptIDs {
+			if _, ok := cat.Script(sid); !ok {
+				return Built{}, fmt.Errorf("unknown script id: %s", sid)
+			}
+		}
+		args = append(args, "--script", strings.Join(scriptIDs, ","))
+	}
+
+	// Script args: keys must look like "<scriptid>.<argname>"; we accept
+	// only [a-z0-9._-] in keys and reject value separators in values to keep
+	// the --script-args payload safe.
+	if len(req.ScriptArgs) > 0 {
+		keys := make([]string, 0, len(req.ScriptArgs))
+		for k := range req.ScriptArgs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		var parts []string
+		for _, k := range keys {
+			v := req.ScriptArgs[k]
+			if v == "" {
+				continue
+			}
+			if !scriptArgKeyRE.MatchString(k) {
+				return Built{}, fmt.Errorf("invalid script-arg key: %q", k)
+			}
+			if strings.ContainsAny(v, ",=\n\r") {
+				return Built{}, fmt.Errorf("invalid script-arg value for %s: contains , = or newline", k)
+			}
+			parts = append(parts, k+"="+v)
+		}
+		if len(parts) > 0 {
+			args = append(args, "--script-args", strings.Join(parts, ","))
+		}
+	}
+
 	// XML on stdout is mandatory — that's how the runner streams structured events.
 	args = append(args, "-oX", "-")
 	// Periodic progress lines so the UI can render an ETA.
@@ -106,7 +154,26 @@ func Build(req Request, cat *catalog.Catalog, info Info, priv auth.State) (Built
 		bin = "nmap"
 	}
 	argv := append([]string{bin}, args...)
-	return Built{Argv: argv, Display: shellQuote(argv), NeedsRoot: needsRoot}, nil
+	return Built{
+		Argv:       argv,
+		Display:    shellQuote(argv),
+		NeedsRoot:  needsRoot,
+		Targets:    append([]string(nil), req.Targets...),
+		FlagIDs:    append([]string(nil), flagIDs...),
+		ScriptIDs:  scriptIDs,
+		ScriptArgs: cloneStringMap(req.ScriptArgs),
+	}, nil
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // validateTarget rejects shell metacharacters defensively. The argv path
@@ -126,8 +193,9 @@ func validateTarget(t string) error {
 }
 
 var (
-	portListRE = regexp.MustCompile(`^[0-9TUSP,\-]+$`)
-	intRE      = regexp.MustCompile(`^\d+$`)
+	portListRE     = regexp.MustCompile(`^[0-9TUSP,\-]+$`)
+	intRE          = regexp.MustCompile(`^\d+$`)
+	scriptArgKeyRE = regexp.MustCompile(`^[a-z][a-z0-9_.-]*$`)
 )
 
 func validateValue(kind, val string) error {

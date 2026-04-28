@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-//go:embed data/flags.json
+//go:embed data/flags.json data/scripts.json data/profiles.json
 var embedded embed.FS
 
 // Flag describes one nmap flag the UI exposes.
@@ -65,35 +65,116 @@ type fileFormat struct {
 	Flags         []Flag     `json:"flags"`
 }
 
+type scriptsFile struct {
+	SchemaVersion string   `json:"schema_version"`
+	Scripts       []Script `json:"scripts"`
+}
+
+type profilesFile struct {
+	SchemaVersion string    `json:"schema_version"`
+	Profiles      []Profile `json:"profiles"`
+}
+
+// Profile is a built-in preset that pre-fills the builder.
+type Profile struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	SkillLevel  string            `json:"skill_level"`
+	Icon        string            `json:"icon,omitempty"`
+	NeedsRoot   bool              `json:"needs_root,omitempty"`
+	FlagIDs     []string          `json:"flag_ids,omitempty"`
+	FlagValues  map[string]string `json:"flag_values,omitempty"`
+	ScriptIDs   []string          `json:"script_ids,omitempty"`
+	ScriptArgs  map[string]string `json:"script_args,omitempty"`
+}
+
+// Script describes one NSE script the UI exposes. Mirrors the flag schema
+// where it makes sense, but adds NSE-specific fields (categories, args).
+type Script struct {
+	ID               string      `json:"id"`
+	Categories       []string    `json:"categories"`
+	SkillLevel       string      `json:"skill_level"`
+	ShortDescription string      `json:"short_description"`
+	LongDescription  string      `json:"long_description,omitempty"`
+	Args             []ScriptArg `json:"args,omitempty"`
+	Examples         []Example   `json:"examples,omitempty"`
+	Warnings         []Warning   `json:"warnings,omitempty"`
+	References       []Refer     `json:"references,omitempty"`
+	Tags             []string    `json:"tags,omitempty"`
+}
+
+// ScriptArg describes a single --script-args parameter.
+type ScriptArg struct {
+	Name        string `json:"name"`        // e.g. "dns-brute.threads"
+	Type        string `json:"type"`        // string | int | boolean
+	Default     string `json:"default,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // Catalog is the in-memory catalog used by the rest of the app.
 type Catalog struct {
 	SchemaVersion string
 	Categories    []Category
 	Flags         []Flag
+	Scripts       []Script
+	Profiles      []Profile
 	byID          map[string]*Flag
+	byScriptID    map[string]*Script
 }
 
 // Load reads the embedded catalog and returns a queryable Catalog.
 func Load() (*Catalog, error) {
 	data, err := embedded.ReadFile("data/flags.json")
 	if err != nil {
-		return nil, fmt.Errorf("reading embedded catalog: %w", err)
+		return nil, fmt.Errorf("reading embedded flags catalog: %w", err)
 	}
 	var f fileFormat
 	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, fmt.Errorf("parsing catalog JSON: %w", err)
+		return nil, fmt.Errorf("parsing flags catalog: %w", err)
 	}
+
+	scriptsData, err := embedded.ReadFile("data/scripts.json")
+	if err != nil {
+		return nil, fmt.Errorf("reading embedded scripts catalog: %w", err)
+	}
+	var sf scriptsFile
+	if err := json.Unmarshal(scriptsData, &sf); err != nil {
+		return nil, fmt.Errorf("parsing scripts catalog: %w", err)
+	}
+
+	profilesData, err := embedded.ReadFile("data/profiles.json")
+	if err != nil {
+		return nil, fmt.Errorf("reading embedded profiles: %w", err)
+	}
+	var pf profilesFile
+	if err := json.Unmarshal(profilesData, &pf); err != nil {
+		return nil, fmt.Errorf("parsing profiles: %w", err)
+	}
+
 	c := &Catalog{
 		SchemaVersion: f.SchemaVersion,
 		Categories:    f.Categories,
 		Flags:         f.Flags,
+		Scripts:       sf.Scripts,
+		Profiles:      pf.Profiles,
 		byID:          make(map[string]*Flag, len(f.Flags)),
+		byScriptID:    make(map[string]*Script, len(sf.Scripts)),
 	}
 	sort.SliceStable(c.Categories, func(i, j int) bool { return c.Categories[i].Order < c.Categories[j].Order })
 	for i := range c.Flags {
 		c.byID[c.Flags[i].ID] = &c.Flags[i]
 	}
+	for i := range c.Scripts {
+		c.byScriptID[c.Scripts[i].ID] = &c.Scripts[i]
+	}
 	return c, nil
+}
+
+// Script looks up an NSE script by ID.
+func (c *Catalog) Script(id string) (*Script, bool) {
+	s, ok := c.byScriptID[id]
+	return s, ok
 }
 
 // Flag looks up a flag by ID.

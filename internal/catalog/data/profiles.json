@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.1",
+  "profiles": [
+    {
+      "id": "quick-scan",
+      "name": "Quick scan",
+      "description": "Top 100 ports with -T4 timing — a sensible first look at any host.",
+      "skill_level": "beginner",
+      "icon": "⚡",
+      "flag_ids": ["fast-scan", "timing-template"],
+      "flag_values": { "timing-template": "4" }
+    },
+    {
+      "id": "ping-sweep",
+      "name": "Ping sweep",
+      "description": "Discover live hosts on a subnet without scanning ports. Great for mapping a /24.",
+      "skill_level": "beginner",
+      "icon": "🛰",
+      "flag_ids": ["ping-scan"]
+    },
+    {
+      "id": "service-and-version",
+      "name": "Service & version detection",
+      "description": "TCP Connect scan plus -sV — what's running and which version. No root required.",
+      "skill_level": "beginner",
+      "icon": "🔎",
+      "flag_ids": ["connect-scan", "version-detect"]
+    },
+    {
+      "id": "intense-scan",
+      "name": "Intense scan",
+      "description": "Aggressive: SYN + service + OS + default scripts + traceroute. Loud — needs sudo.",
+      "skill_level": "intermediate",
+      "icon": "🔥",
+      "flag_ids": ["aggressive", "timing-template", "verbose"],
+      "flag_values": { "timing-template": "4" },
+      "needs_root": true
+    },
+    {
+      "id": "vuln-scan",
+      "name": "Vuln scan (vulners)",
+      "description": "Service detection plus the vulners script — quick CVE lookup based on detected versions.",
+      "skill_level": "intermediate",
+      "icon": "🛡",
+      "flag_ids": ["connect-scan", "version-detect"],
+      "script_ids": ["vulners"]
+    },
+    {
+      "id": "tls-audit",
+      "name": "TLS audit",
+      "description": "Certificate + cipher enumeration on TLS-bearing ports. Good for compliance checks.",
+      "skill_level": "intermediate",
+      "icon": "🔒",
+      "flag_ids": ["connect-scan", "version-detect"],
+      "script_ids": ["ssl-cert", "ssl-enum-ciphers"]
+    },
+    {
+      "id": "smb-recon",
+      "name": "SMB recon",
+      "description": "Quick Windows/SMB discovery against ports 139/445.",
+      "skill_level": "beginner",
+      "icon": "🪟",
+      "flag_ids": ["connect-scan", "version-detect", "ports"],
+      "flag_values": { "ports": "139,445" },
+      "script_ids": ["smb-os-discovery", "smb-protocols"]
+    },
+    {
+      "id": "all-tcp",
+      "name": "All TCP ports",
+      "description": "Scan every TCP port (1-65535). Slow — best on a single host you really care about.",
+      "skill_level": "advanced",
+      "icon": "🐌",
+      "flag_ids": ["connect-scan", "ports", "version-detect"],
+      "flag_values": { "ports": "1-65535" }
+    }
+  ]
+}

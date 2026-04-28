@@ -1,4 +1,5 @@
 <script lang="ts">
+  import NotifyToggle from './NotifyToggle.svelte';
   import type { NmapInfo, PrivilegeState } from '../lib/types';
 
   let { nmap, privilege }: { nmap: NmapInfo | null; privilege: PrivilegeState | null } = $props();
@@ -22,6 +23,7 @@
 <header>
   <div class="brand">n-mapped</div>
   <div class="pills">
+    <NotifyToggle />
     <span class="pill {nmapPill.cls}" title={nmap?.path ?? ''}>{nmapPill.text}</span>
     <span class="pill {privPill.cls}" title={privilege?.reason ?? ''}>{privPill.text}</span>
   </div>

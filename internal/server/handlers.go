@@ -31,7 +31,16 @@ func (s *Server) routes() error {
 	s.mux.HandleFunc("/api/history/", s.handleHistoryItem)
 	s.mux.HandleFunc("/api/favorites", s.handleFavoritesCollection)
 	s.mux.HandleFunc("/api/favorites/", s.handleFavoriteItem)
+	s.mux.HandleFunc("/api/update", s.handleUpdate)
 	return nil
+}
+
+func (s *Server) handleUpdate(w http.ResponseWriter, _ *http.Request) {
+	if s.opts.Update == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.opts.Update.Status())
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

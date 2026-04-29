@@ -1,0 +1,60 @@
+.TH N-MAPPED 1 "" "n-mapped" "User Commands"
+.SH NAME
+n-mapped \- beginner-friendly local GUI for Nmap
+.SH SYNOPSIS
+.B n-mapped
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+\fBn-mapped\fR launches a local HTTP server on \fI127.0.0.1\fR and opens a
+browser-based UI that lets you click, search, and combine Nmap flags and NSE
+scripts without memorizing CLI syntax. It drives the system \fBnmap\fR(1)
+binary as a subprocess, parses its XML output, and persists scan history and
+favorites under \fI$XDG_DATA_HOME/n-mapped/\fR (Linux) or
+\fI~/Library/Application\ Support/n-mapped/\fR (macOS).
+.PP
+The UI is embedded in the \fBn-mapped\fR binary at build time; no Node or
+Python runtime is required at runtime. The only dependency is \fBnmap\fR
+itself, version 7.40 or later.
+.SH OPTIONS
+.TP
+.BR \-\-bind " \fIhost:port\fR"
+Address the local HTTP server listens on. Default \fI127.0.0.1:8765\fR.
+Refuses non-loopback addresses unless \fI\-\-allow-remote\fR is also set.
+.TP
+.BR \-\-nmap-path " \fIpath\fR"
+Override the location of the \fBnmap\fR binary. Default: PATH lookup.
+.TP
+.BR \-\-privileged
+Advisory flag indicating the user wants raw-socket scans enabled. Actual
+elevation comes from running via \fIsudo\fR(1) or having \fIcap_net_raw\fR on
+the binary; without those, this flag prints a warning.
+.TP
+.BR \-\-no-browser
+Do not auto-open a browser tab on startup.
+.TP
+.BR \-\-version
+Print the build version and exit.
+.SH PRIVILEGE MODEL
+TCP SYN, UDP, OS detection, and similar scans require raw sockets. The app
+does not request privileges itself; instead, launch it elevated:
+.PP
+.RS 4
+\fIsudo n-mapped\fR
+.RE
+.PP
+Once elevated, the UI unlocks all flags. When unprivileged, the same flags
+are visibly disabled with an explainer tooltip and the TCP Connect scan
+(\-sT) is offered as a no-root alternative.
+.SH FILES
+.TP
+.I $XDG_DATA_HOME/n-mapped/history/<id>.json
+Per-scan history records (Linux). Replace prefix with
+\fI~/Library/Application\ Support/n-mapped/\fR on macOS.
+.TP
+.I .../n-mapped/favorites/<id>.json
+Saved scan templates the user can re-apply.
+.SH SEE ALSO
+.BR nmap (1),
+the Nmap Reference Guide at \fIhttps://nmap.org/book/\fR.
+.SH BUGS
+Report at \fIhttps://github.com/nick-the-descended/n-mapped/issues\fR.

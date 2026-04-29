@@ -61,7 +61,18 @@ export const api = {
   favorites: () => getJSON<Favorite[]>('/api/favorites'),
   saveFavorite: (fav: Partial<Favorite>) => postJSON<Favorite>('/api/favorites', fav),
   deleteFavorite: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/favorites/${id}`),
+  update: () => getJSON<UpdateStatus>('/api/update'),
 };
+
+export interface UpdateStatus {
+  current_version: string;
+  latest_version?: string;
+  has_update: boolean;
+  url?: string;
+  checked_at?: string;
+  enabled: boolean;
+  error?: string;
+}
 
 // streamScan opens an SSE connection for the given scan id and invokes
 // onEvent for every event. Returns a function that closes the stream.

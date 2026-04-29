@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#0b1020"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="12" ry="12" fill="url(#bg)"/>
+  <!-- radar arcs -->
+  <g stroke="#60a5fa" stroke-width="1.6" fill="none" opacity="0.85">
+    <circle cx="22" cy="42" r="22"/>
+    <circle cx="22" cy="42" r="14"/>
+    <circle cx="22" cy="42" r="7"/>
+  </g>
+  <line x1="22" y1="42" x2="44" y2="20" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+  <!-- ping dots -->
+  <circle cx="38" cy="28" r="2.4" fill="#4ade80"/>
+  <circle cx="34" cy="46" r="2"   fill="#fbbf24"/>
+  <circle cx="14" cy="34" r="1.8" fill="#f87171"/>
+</svg>

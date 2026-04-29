@@ -13,6 +13,7 @@ import (
 	"github.com/nick-the-descended/n-mapped/internal/catalog"
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
 	"github.com/nick-the-descended/n-mapped/internal/store"
+	"github.com/nick-the-descended/n-mapped/internal/update"
 )
 
 // Options bundles everything the server needs at construction time.
@@ -25,6 +26,7 @@ type Options struct {
 	Runner    *nmap.Runner
 	History   *store.History
 	Favorites *store.Favorites
+	Update    *update.Checker
 }
 
 // Server is an http.Handler plus the lifecycle hooks for graceful shutdown.

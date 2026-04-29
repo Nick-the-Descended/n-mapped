@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=n-mapped
+GenericName=Nmap GUI
+Comment=Beginner-friendly graphical front-end for Nmap
+Exec=n-mapped
+Icon=n-mapped
+Terminal=false
+Categories=Network;Security;
+Keywords=nmap;scan;network;security;ports;
+StartupNotify=true

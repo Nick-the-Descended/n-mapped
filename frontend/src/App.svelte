@@ -16,6 +16,7 @@
   import NotifyToggle from './components/NotifyToggle.svelte';
   import Settings from './components/Settings.svelte';
   import KeyboardHelp from './components/KeyboardHelp.svelte';
+  import UpdateBadge from './components/UpdateBadge.svelte';
   import { api } from './lib/api';
   import { notify } from './lib/notify';
   import { applyTheme, loadTheme, type Theme } from './lib/theme';
@@ -347,6 +348,7 @@
 
 <footer>
   <span>nmap on {nmap?.path ?? 'PATH'}</span>
+  <UpdateBadge />
   <a href="https://nmap.org/book/" target="_blank" rel="noopener noreferrer">Nmap reference guide</a>
 </footer>
 

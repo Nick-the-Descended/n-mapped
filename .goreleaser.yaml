@@ -1,0 +1,97 @@
+# goreleaser config for n-mapped.
+# Local: `goreleaser release --snapshot --clean` (no upload).
+# Tagged release: `git tag vX.Y.Z && git push --tags` -> CI publishes.
+version: 2
+
+before:
+  hooks:
+    - sh -c 'cd frontend && npm ci'
+    - sh -c 'cd frontend && npm run build'
+    - sh -c 'rm -rf internal/server/frontend_dist && cp -r frontend/dist internal/server/frontend_dist'
+    - go mod tidy
+
+builds:
+  - id: n-mapped
+    main: .
+    binary: n-mapped
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: tarball
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE*
+      - README.md
+      - packaging/n-mapped.1
+      - packaging/n-mapped.desktop
+      - packaging/icon.svg
+
+checksum:
+  name_template: 'SHA256SUMS'
+  algorithm: sha256
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-dev-{{.ShortCommit}}'
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+nfpms:
+  - id: deb
+    package_name: n-mapped
+    vendor: nick-the-descended
+    homepage: https://github.com/nick-the-descended/n-mapped
+    maintainer: nick-the-descended <noreply@example.com>
+    description: |-
+      A beginner-friendly local GUI for Nmap.
+      Click and search through every flag, save favorites, watch live
+      scan progress, and learn nmap from inline plain-English descriptions.
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    dependencies:
+      - nmap
+    contents:
+      - src: packaging/n-mapped.desktop
+        dst: /usr/share/applications/n-mapped.desktop
+      - src: packaging/icon.svg
+        dst: /usr/share/icons/hicolor/scalable/apps/n-mapped.svg
+      - src: packaging/n-mapped.1
+        dst: /usr/share/man/man1/n-mapped.1
+        file_info:
+          mode: 0644
+
+release:
+  github:
+    owner: nick-the-descended
+    name: n-mapped
+  draft: false
+  prerelease: auto
+  name_template: 'n-mapped {{ .Tag }}'
+  footer: |
+    ## Install
+    - Debian / Ubuntu: `sudo apt install ./n-mapped_{{ .Version }}_amd64.deb`
+    - macOS / Linux (any): `curl -fsSL https://raw.githubusercontent.com/nick-the-descended/n-mapped/main/scripts/install.sh | sh`
+    - Source: `git clone https://github.com/nick-the-descended/n-mapped && cd n-mapped && make install`
+
+    Verify checksums against `SHA256SUMS` before installing manually.

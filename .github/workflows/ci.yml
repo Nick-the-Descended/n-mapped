@@ -1,0 +1,65 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test ./... -race -count=1
+      - name: build (no embed asset rebuild — uses committed bundle)
+        run: go build -trimpath -o n-mapped .
+      - name: smoke test (start, hit /api/health, shut down)
+        if: runner.os == 'Linux'
+        run: |
+          ./n-mapped --bind 127.0.0.1:18769 --no-browser &
+          PID=$!
+          sleep 1
+          curl -fsS http://127.0.0.1:18769/api/health | grep '"ok":true'
+          curl -fsS http://127.0.0.1:18769/api/catalog | python3 -c "import json,sys; c=json.load(sys.stdin); assert len(c['flags'])>=15; print('catalog ok')"
+          kill $PID; wait $PID || true
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: install
+        run: cd frontend && npm ci
+      - name: typecheck
+        run: cd frontend && npx svelte-check --tsconfig ./tsconfig.json --threshold warning
+      - name: build
+        run: cd frontend && npm run build
+      - name: ensure committed bundle matches source
+        run: |
+          rm -rf internal/server/frontend_dist
+          cp -r frontend/dist internal/server/frontend_dist
+          if ! git diff --quiet -- internal/server/frontend_dist; then
+            echo "::error::Committed frontend bundle is stale. Run 'make frontend' and commit the result."
+            git status -s -- internal/server/frontend_dist
+            exit 1
+          fi

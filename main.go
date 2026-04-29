@@ -23,6 +23,7 @@ import (
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
 	"github.com/nick-the-descended/n-mapped/internal/server"
 	"github.com/nick-the-descended/n-mapped/internal/store"
+	"github.com/nick-the-descended/n-mapped/internal/update"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=...".
@@ -33,6 +34,7 @@ func main() {
 	nmapPath := flag.String("nmap-path", "", "override the nmap binary path (default: PATH lookup)")
 	privileged := flag.Bool("privileged", false, "advisory: indicate elevated privileges are intended (does not itself elevate; run via sudo)")
 	noBrowser := flag.Bool("no-browser", false, "do not auto-open a browser tab on startup")
+	noUpdateCheck := flag.Bool("no-update-check", false, "disable the once-per-hour 'newer release available' check against the GitHub Releases API")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
 
@@ -41,12 +43,12 @@ func main() {
 		return
 	}
 
-	if err := run(*bind, *nmapPath, *privileged, *noBrowser); err != nil {
+	if err := run(*bind, *nmapPath, *privileged, *noBrowser, !*noUpdateCheck); err != nil {
 		log.Fatalf("n-mapped: %v", err)
 	}
 }
 
-func run(bind, nmapPath string, privileged, noBrowser bool) error {
+func run(bind, nmapPath string, privileged, noBrowser, updateCheck bool) error {
 	dataDir, err := config.DataDir()
 	if err != nil {
 		return fmt.Errorf("resolving data dir: %w", err)
@@ -84,6 +86,9 @@ func run(bind, nmapPath string, privileged, noBrowser bool) error {
 		return fmt.Errorf("opening favorites store: %w", err)
 	}
 
+	checker := update.New(Version, updateCheck)
+	checker.Run(ctx)
+
 	srv, err := server.New(server.Options{
 		Bind:      bind,
 		NmapPath:  nmapPath,
@@ -93,6 +98,7 @@ func run(bind, nmapPath string, privileged, noBrowser bool) error {
 		Runner:    nmap.NewRunner(),
 		History:   hist,
 		Favorites: favs,
+		Update:    checker,
 	})
 	if err != nil {
 		return err

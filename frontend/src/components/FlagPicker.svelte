@@ -1,5 +1,10 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { EVT, on } from '../lib/events';
   import type { Catalog, Flag, PrivilegeState, SkillLevel } from '../lib/types';
+
+  let searchInput: HTMLInputElement | null = $state(null);
+  onMount(() => on(EVT.focusSearch, () => searchInput?.focus()));
 
   let {
     catalog,
@@ -71,8 +76,9 @@
   <div class="controls">
     <input
       type="text"
-      placeholder="Search flags (e.g. 'syn', 'udp', 'top')"
+      placeholder="Search flags (e.g. 'syn', 'udp', 'top') · ⌘K"
       bind:value={query}
+      bind:this={searchInput}
     />
     <div class="skills">
       {#each ['all', 'beginner', 'intermediate', 'advanced'] as level (level)}

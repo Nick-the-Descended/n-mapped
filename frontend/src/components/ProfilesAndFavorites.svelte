@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '../lib/api';
+  import { EVT, on } from '../lib/events';
   import type { Favorite, Profile } from '../lib/types';
 
   let {
@@ -39,7 +40,10 @@
     catch (e) { error = (e as Error).message; }
   }
 
-  onMount(loadFavorites);
+  onMount(() => {
+    loadFavorites();
+    return on(EVT.saveFavorite, () => { if (canSave) savePrompt = true; });
+  });
 
   function applyProfile(p: Profile) {
     onApply({

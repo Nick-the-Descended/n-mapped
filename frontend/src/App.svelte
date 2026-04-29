@@ -14,8 +14,13 @@
   import ReverseParser from './components/ReverseParser.svelte';
   import ProfilesAndFavorites from './components/ProfilesAndFavorites.svelte';
   import NotifyToggle from './components/NotifyToggle.svelte';
+  import Settings from './components/Settings.svelte';
+  import KeyboardHelp from './components/KeyboardHelp.svelte';
   import { api } from './lib/api';
   import { notify } from './lib/notify';
+  import { applyTheme, loadTheme, type Theme } from './lib/theme';
+  import { loadDraft, saveDraft } from './lib/draft';
+  import { EVT, emit } from './lib/events';
   import type {
     Catalog, Host, HistoryRecord, NmapInfo, PrivilegeState, RunStats,
     ScanInfo, ScanRequest, TaskProgress,
@@ -52,7 +57,67 @@
   // History refresh trigger — bumped when a scan completes so HistoryPanel can pick it up.
   let historyRefreshKey = $state(0);
 
+  // Phase 8: theme + settings + keyboard help.
+  let theme = $state<Theme>('system');
+  let showSettings = $state(false);
+  let showHelp = $state(false);
+
   onMount(async () => {
+    // Apply persisted theme before the first paint flash settles.
+    theme = loadTheme();
+    applyTheme(theme);
+
+    // Restore the in-progress builder draft, if any.
+    const draft = loadDraft();
+    if (draft) {
+      targets = draft.targets;
+      selected = new Set(draft.selectedFlagIDs);
+      values = { ...draft.flagValues };
+      scriptSelected = new Set(draft.selectedScriptIDs);
+      scriptArgs = { ...draft.scriptArgs };
+    }
+
+    // Global keyboard shortcuts — text inputs receive most keys naturally;
+    // modifier-only shortcuts always work, ? and 1/2/3 only fire when a
+    // typing element isn't focused.
+    function handleKey(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      const inField = isTypingTarget(e.target);
+
+      if (e.key === 'Escape') {
+        if (showSettings) { showSettings = false; e.preventDefault(); return; }
+        if (showHelp)     { showHelp = false;     e.preventDefault(); return; }
+      }
+      if (mod && e.key === 'k') {
+        e.preventDefault();
+        emit(EVT.focusSearch);
+        return;
+      }
+      if (mod && e.key === 'Enter') {
+        e.preventDefault();
+        emit(EVT.runScan);
+        return;
+      }
+      if (mod && e.key === '.') {
+        e.preventDefault();
+        emit(EVT.stopScan);
+        return;
+      }
+      if (mod && e.key === 's') {
+        e.preventDefault();
+        emit(EVT.saveFavorite);
+        activeTab = 'builder';
+        return;
+      }
+      if (!inField) {
+        if (e.key === '?') { showHelp = true; e.preventDefault(); return; }
+        if (e.key === '1') { activeTab = 'builder'; return; }
+        if (e.key === '2') { activeTab = 'results'; return; }
+        if (e.key === '3') { activeTab = 'history'; return; }
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+
     try {
       const [cat, ver, priv] = await Promise.all([
         api.catalog(), api.version(), api.privilege(),
@@ -63,6 +128,27 @@
     } catch (e) {
       bootError = (e as Error).message;
     }
+
+    return () => window.removeEventListener('keydown', handleKey);
+  });
+
+  function isTypingTarget(t: EventTarget | null): boolean {
+    if (!(t instanceof HTMLElement)) return false;
+    const tag = t.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+    if (t.isContentEditable) return true;
+    return false;
+  }
+
+  // Auto-save draft whenever any builder input changes.
+  $effect(() => {
+    saveDraft({
+      targets,
+      selectedFlagIDs: [...selected],
+      flagValues: { ...values },
+      selectedScriptIDs: [...scriptSelected],
+      scriptArgs: { ...scriptArgs },
+    });
   });
 
   let command = $derived(
@@ -167,7 +253,14 @@
 
 <EthicalUseSplash />
 
-<Header {nmap} {privilege} />
+<Header {nmap} {privilege} onOpenSettings={() => (showSettings = true)} />
+
+{#if showSettings}
+  <Settings bind:theme onClose={() => (showSettings = false)} />
+{/if}
+{#if showHelp}
+  <KeyboardHelp onClose={() => (showHelp = false)} />
+{/if}
 
 <TabBar bind:active={activeTab} counts={{ results: resultsCount, history: historyRefreshKey }} />
 

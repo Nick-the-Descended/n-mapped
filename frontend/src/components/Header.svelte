@@ -2,7 +2,11 @@
   import NotifyToggle from './NotifyToggle.svelte';
   import type { NmapInfo, PrivilegeState } from '../lib/types';
 
-  let { nmap, privilege }: { nmap: NmapInfo | null; privilege: PrivilegeState | null } = $props();
+  let { nmap, privilege, onOpenSettings }: {
+    nmap: NmapInfo | null;
+    privilege: PrivilegeState | null;
+    onOpenSettings: () => void;
+  } = $props();
 
   let nmapPill = $derived.by(() => {
     if (!nmap) return { text: 'detecting nmap…', cls: '' };
@@ -26,6 +30,7 @@
     <NotifyToggle />
     <span class="pill {nmapPill.cls}" title={nmap?.path ?? ''}>{nmapPill.text}</span>
     <span class="pill {privPill.cls}" title={privilege?.reason ?? ''}>{privPill.text}</span>
+    <button class="settings" onclick={onOpenSettings} title="Settings (theme, shortcuts, etc.)" aria-label="Open settings">⚙</button>
   </div>
 </header>
 
@@ -46,5 +51,16 @@
   .pills {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
   }
+  .settings {
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .settings:hover { color: var(--text); border-color: var(--border-strong); }
 </style>

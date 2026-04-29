@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { api, streamScan } from '../lib/api';
+  import { EVT, on } from '../lib/events';
   import type { Host, RunStats, ScanInfo, ScanRequest, TaskProgress } from '../lib/types';
 
   let {
@@ -95,6 +97,13 @@
     hosts = []; scaninfos = []; runstats = null; progress = null; stderr = [];
     pushUpdate();
   }
+
+  // Keyboard shortcut hooks: ⌘⏎ runs (when no scan in flight); ⌘. stops.
+  onMount(() => {
+    const offRun = on(EVT.runScan, () => { if (!scanID && !starting) start(); });
+    const offStop = on(EVT.stopScan, () => { if (scanID && !finished) cancel(); });
+    return () => { offRun(); offStop(); };
+  });
 </script>
 
 <section>

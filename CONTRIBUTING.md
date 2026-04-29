@@ -160,6 +160,14 @@ goreleaser release --snapshot --clean
 - Feature requests: please describe the user flow you'd want, not just "add support for X".
 - Security issues: open a private security advisory on GitHub rather than a public issue.
 
-## License
+## License & contributor terms
 
-By contributing you agree your work is licensed under the project's license.
+This project is licensed under [PolyForm Noncommercial 1.0.0](./LICENSE) — free for noncommercial use, but commercial use requires a separate agreement with the copyright holder.
+
+By submitting a pull request, you agree that:
+
+1. You wrote the code yourself (or have the right to contribute it).
+2. Your contribution is licensed under PolyForm Noncommercial 1.0.0 like the rest of the project.
+3. **You grant the project's copyright holder a perpetual, irrevocable license to relicense your contribution under different terms** (including commercial terms) without further consent. This is what lets the maintainer offer commercial licenses to companies who want them, dual-license to a more permissive license later, or accept a corporate sponsorship that requires it. If this is a problem for you, please open an issue first to discuss.
+
+If your employer has any claim on the code you write, please make sure they're OK with you contributing under these terms before opening a PR.

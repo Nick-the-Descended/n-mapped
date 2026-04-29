@@ -65,7 +65,7 @@ nfpms:
       A beginner-friendly local GUI for Nmap.
       Click and search through every flag, save favorites, watch live
       scan progress, and learn nmap from inline plain-English descriptions.
-    license: MIT
+    license: PolyForm-Noncommercial-1.0.0
     formats:
       - deb
     bindir: /usr/bin

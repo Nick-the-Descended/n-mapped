@@ -221,7 +221,16 @@ make dev               # Terminal 2 — Go server on :8765 (use --no-browser if 
 
 ## License
 
-TBD — placeholder until the first tagged release.
+[**PolyForm Noncommercial License 1.0.0**](./LICENSE) (Copyright © 2026 Nick-the-Descended).
+
+In short:
+
+- ✅ **Free for any noncommercial use** — personal projects, learning, hobby networks, hackathons, classroom teaching, public research, charities, government, etc.
+- ✅ **Modify and redistribute** under the same license, as long as you pass the license text along.
+- ❌ **No commercial use without a separate agreement** — you can't sell this, host it as a paid service, bundle it into a commercial product, or use it to generate revenue. If you want to do any of that, contact the maintainer for a commercial license.
+- The copyright holder reserves the right to use this code commercially, license it on different terms to specific parties, and re-release it under any future license.
+
+This is a **source-available** license, not OSI-approved "open source"; the OSI definition rules out commercial restrictions. GitHub will badge it as PolyForm-NC-1.0.0.
 
 ## Acknowledgements
 

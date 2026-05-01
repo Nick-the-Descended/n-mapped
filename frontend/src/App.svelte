@@ -9,6 +9,8 @@
   import ScanRunner from './components/ScanRunner.svelte';
   import ResultsView from './components/ResultsView.svelte';
   import HistoryPanel from './components/HistoryPanel.svelte';
+  import DiffView from './components/DiffView.svelte';
+  import TagsEditor from './components/TagsEditor.svelte';
   import Glossary from './components/Glossary.svelte';
   import EthicalUseSplash from './components/EthicalUseSplash.svelte';
   import ReverseParser from './components/ReverseParser.svelte';
@@ -42,7 +44,10 @@
   let scriptArgs = $state<Record<string, string>>({});
 
   // Tab navigation.
-  let activeTab = $state<'builder' | 'results' | 'history'>('builder');
+  let activeTab = $state<'builder' | 'results' | 'history' | 'diff'>('builder');
+  // When the user clicks "Compare with…" on a history record, we land on the
+  // Diff tab with this scan pre-filled as the "A" side.
+  let diffSeedID = $state<string | null>(null);
 
   // Currently displayed result — either the live scan or a loaded historical one.
   type ResultSource = { kind: 'live'; id: string | null; display: string | null }
@@ -115,6 +120,7 @@
         if (e.key === '1') { activeTab = 'builder'; return; }
         if (e.key === '2') { activeTab = 'results'; return; }
         if (e.key === '3') { activeTab = 'history'; return; }
+        if (e.key === '4') { activeTab = 'diff'; return; }
       }
     }
     window.addEventListener('keydown', handleKey);
@@ -234,6 +240,11 @@
     activeTab = 'results';
   }
 
+  function openDiffWith(id: string) {
+    diffSeedID = id || null;
+    activeTab = 'diff';
+  }
+
   function rerunFromRecord(rec: HistoryRecord) {
     targets = (rec.targets ?? []).join(' ');
     selected = new Set(rec.flag_ids ?? []);
@@ -328,11 +339,19 @@
           progress={null}
           label={`From history · ${resultSource.record.id.slice(0, 8)}`}
         />
-        {#if historyXmlURL}
-          <p class="dl-row">
+        <TagsEditor
+          historyID={resultSource.record.id}
+          tags={resultSource.record.tags ?? []}
+          notes={resultSource.record.notes ?? ''}
+        />
+        <div class="dl-row">
+          {#if historyXmlURL}
             <a href={historyXmlURL} download>Download raw nmap XML</a>
-          </p>
-        {/if}
+          {/if}
+          <button onclick={() => openDiffWith(resultSource.kind === 'history' ? resultSource.record.id : '')}>
+            Compare with another scan…
+          </button>
+        </div>
       {:else}
         <div class="empty-state">
           No result loaded yet. Run a scan from the Builder tab, or pick one from History.
@@ -341,6 +360,10 @@
     {:else if activeTab === 'history'}
       {#key historyRefreshKey}
         <HistoryPanel onOpen={openHistoryRecord} onRerun={rerunFromRecord} />
+      {/key}
+    {:else if activeTab === 'diff'}
+      {#key diffSeedID ?? '_none'}
+        <DiffView initialA={diffSeedID} />
       {/key}
     {/if}
   {/if}

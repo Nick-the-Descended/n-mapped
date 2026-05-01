@@ -1,16 +1,18 @@
 <script lang="ts">
+  type Tab = 'builder' | 'results' | 'history' | 'diff';
   let {
-    active = $bindable<'builder' | 'results' | 'history'>('builder'),
+    active = $bindable<Tab>('builder'),
     counts,
   }: {
-    active: 'builder' | 'results' | 'history';
+    active: Tab;
     counts: { results: number; history: number };
   } = $props();
 
-  const tabs: Array<{ id: typeof active; label: string }> = [
+  const tabs: Array<{ id: Tab; label: string }> = [
     { id: 'builder', label: 'Builder' },
     { id: 'results', label: 'Results' },
     { id: 'history', label: 'History' },
+    { id: 'diff',    label: 'Diff' },
   ];
 </script>
 

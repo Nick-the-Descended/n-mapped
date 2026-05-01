@@ -1,6 +1,7 @@
 <script lang="ts">
   import { saveTheme, type Theme } from '../lib/theme';
   import { clearDraft } from '../lib/draft';
+  import { api } from '../lib/api';
 
   let { theme = $bindable<Theme>('system'), onClose }: { theme: Theme; onClose: () => void } = $props();
 
@@ -50,6 +51,17 @@
         <code>~/Library/Application Support/n-mapped/</code> on macOS — clear those by deleting the directory.
       </p>
       <button onclick={clearLocalState}>Clear browser-side state</button>
+    </section>
+
+    <section>
+      <div class="label">Audit log export</div>
+      <p class="hint">
+        Download every scan you've run as a flat file — useful for compliance reviews, sharing with a team, or feeding a SIEM. Includes timestamps, command, targets, hosts up, open-port count, tags, and notes.
+      </p>
+      <div class="dl">
+        <a class="btn" href={api.auditURL('json')} download>Export JSON</a>
+        <a class="btn" href={api.auditURL('csv')} download>Export CSV</a>
+      </div>
     </section>
 
     <section>
@@ -117,4 +129,16 @@
     font-family: ui-monospace, monospace;
     font-size: 0.85em;
   }
+  .dl { display: flex; gap: 0.4rem; }
+  .dl .btn {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    background: var(--bg-elev);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    text-decoration: none;
+    font: inherit;
+  }
+  .dl .btn:hover { border-color: var(--accent); color: var(--accent); }
 </style>

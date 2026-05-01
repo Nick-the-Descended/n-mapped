@@ -1,5 +1,6 @@
 import type {
   Catalog,
+  DiffResponse,
   Favorite,
   HistoryRecord,
   HistorySummary,
@@ -48,6 +49,24 @@ async function deleteJSON<T>(path: string): Promise<T> {
   return parsed as T;
 }
 
+async function patchJSON<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let parsed: unknown = null;
+  try { parsed = text ? JSON.parse(text) : null; } catch { /* leave null */ }
+  if (!res.ok) {
+    const msg = (parsed && typeof parsed === 'object' && 'error' in parsed)
+      ? String((parsed as { error: unknown }).error)
+      : text || `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return parsed as T;
+}
+
 export const api = {
   catalog: () => getJSON<Catalog>('/api/catalog'),
   version: () => getJSON<NmapInfo>('/api/version'),
@@ -58,10 +77,15 @@ export const api = {
   historyRecord: (id: string) => getJSON<HistoryRecord>(`/api/history/${id}`),
   historyDelete: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/history/${id}`),
   historyXmlURL: (id: string) => `/api/history/${id}/xml`,
+  historyMeta: (id: string, tags: string[], notes: string) =>
+    patchJSON<HistoryRecord>(`/api/history/${id}`, { tags, notes }),
   favorites: () => getJSON<Favorite[]>('/api/favorites'),
   saveFavorite: (fav: Partial<Favorite>) => postJSON<Favorite>('/api/favorites', fav),
   deleteFavorite: (id: string) => deleteJSON<{ deleted: boolean }>(`/api/favorites/${id}`),
   update: () => getJSON<UpdateStatus>('/api/update'),
+  diff: (a: string, b: string) =>
+    getJSON<DiffResponse>(`/api/diff?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+  auditURL: (format: 'json' | 'csv') => `/api/audit?format=${format}`,
 };
 
 export interface UpdateStatus {

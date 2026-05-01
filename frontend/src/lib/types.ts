@@ -250,6 +250,8 @@ export interface HistorySummary {
   hosts_up: number;
   hosts_total: number;
   open_ports: number;
+  tags?: string[];
+  notes?: string;
   error?: string;
 }
 
@@ -259,9 +261,13 @@ export interface HistoryRecord {
   argv: string[];
   targets: string[];
   flag_ids?: string[];
+  script_ids?: string[];
+  script_args?: Record<string, string>;
   started: string;
   ended: string;
   exit_code: number;
+  tags?: string[];
+  notes?: string;
   result?: {
     id: string;
     argv: string[];
@@ -276,4 +282,60 @@ export interface HistoryRecord {
     error?: string;
   };
   error?: string;
+}
+
+// ----- Diff -----
+
+export interface DiffPortInfo {
+  protocol: string;
+  portid: number;
+  state: string;
+  service?: string;
+  product?: string;
+  version?: string;
+}
+
+export interface DiffPortChange {
+  protocol: string;
+  portid: number;
+  state_before?: string;
+  state_after?: string;
+  service_before?: string;
+  service_after?: string;
+  version_before?: string;
+  version_after?: string;
+}
+
+export interface DiffHostSummary {
+  address: string;
+  hostname?: string;
+}
+
+export interface DiffHostChange {
+  address: string;
+  hostname?: string;
+  status_before?: string;
+  status_after?: string;
+  ports_added?: DiffPortInfo[];
+  ports_removed?: DiffPortInfo[];
+  ports_changed?: DiffPortChange[];
+  os_before?: string;
+  os_after?: string;
+}
+
+export interface DiffResult {
+  hosts_added?: DiffHostSummary[];
+  hosts_removed?: DiffHostSummary[];
+  hosts_changed?: DiffHostChange[];
+  identical: boolean;
+}
+
+export interface DiffResponse {
+  a: string;
+  b: string;
+  a_started: string;
+  b_started: string;
+  a_targets: string[];
+  b_targets: string[];
+  diff: DiffResult;
 }

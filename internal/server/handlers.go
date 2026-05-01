@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/nick-the-descended/n-mapped/internal/diff"
 	"github.com/nick-the-descended/n-mapped/internal/nmap"
 	"github.com/nick-the-descended/n-mapped/internal/store"
 )
@@ -32,6 +35,8 @@ func (s *Server) routes() error {
 	s.mux.HandleFunc("/api/favorites", s.handleFavoritesCollection)
 	s.mux.HandleFunc("/api/favorites/", s.handleFavoriteItem)
 	s.mux.HandleFunc("/api/update", s.handleUpdate)
+	s.mux.HandleFunc("/api/diff", s.handleDiff)
+	s.mux.HandleFunc("/api/audit", s.handleAudit)
 	return nil
 }
 
@@ -250,9 +255,40 @@ func (s *Server) handleHistoryItem(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"deleted": true})
+	case http.MethodPatch:
+		var body struct {
+			Tags  []string `json:"tags"`
+			Notes string   `json:"notes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
+			return
+		}
+		// Cap tag count + length so a malicious or accidental large payload
+		// can't bloat the on-disk record.
+		if len(body.Tags) > 32 {
+			writeError(w, http.StatusBadRequest, "too many tags (max 32)")
+			return
+		}
+		for _, t := range body.Tags {
+			if len(t) > 64 {
+				writeError(w, http.StatusBadRequest, "tag too long (max 64 chars)")
+				return
+			}
+		}
+		if len(body.Notes) > 4096 {
+			writeError(w, http.StatusBadRequest, "notes too long (max 4096 chars)")
+			return
+		}
+		if err := s.opts.History.UpdateMeta(id, body.Tags, body.Notes); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		updated, _ := s.opts.History.Get(id)
+		writeJSON(w, http.StatusOK, updated)
 	default:
-		w.Header().Set("Allow", "GET, DELETE")
-		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
+		w.Header().Set("Allow", "GET, PATCH, DELETE")
+		writeError(w, http.StatusMethodNotAllowed, "GET, PATCH, or DELETE required")
 	}
 }
 
@@ -322,6 +358,104 @@ func (s *Server) handleFavoriteItem(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Allow", "GET, DELETE")
 		writeError(w, http.StatusMethodNotAllowed, "GET or DELETE required")
+	}
+}
+
+// GET /api/diff?a=<id>&b=<id> — structured diff between two scan records.
+func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeError(w, http.StatusNotFound, "history disabled")
+		return
+	}
+	a := r.URL.Query().Get("a")
+	b := r.URL.Query().Get("b")
+	if a == "" || b == "" {
+		writeError(w, http.StatusBadRequest, "both ?a= and ?b= scan ids are required")
+		return
+	}
+	recA, err := s.opts.History.Get(a)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	recB, err := s.opts.History.Get(b)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if recA == nil || recB == nil {
+		writeError(w, http.StatusNotFound, "one or both scan ids not found")
+		return
+	}
+	var runA, runB *nmap.Run
+	if recA.Result != nil {
+		runA = recA.Result.Run
+	}
+	if recB.Result != nil {
+		runB = recB.Result.Run
+	}
+	out := diff.Compare(runA, runB)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"a":          a,
+		"b":          b,
+		"a_started":  recA.Started,
+		"b_started":  recB.Started,
+		"a_targets":  recA.Targets,
+		"b_targets":  recB.Targets,
+		"diff":       out,
+	})
+}
+
+// GET /api/audit?format=csv|json — flat export of every history record.
+// Defaults to JSON. CSV is timestamp-sortable for spreadsheets / SIEM ingest.
+func (s *Server) handleAudit(w http.ResponseWriter, r *http.Request) {
+	if s.opts.History == nil {
+		writeError(w, http.StatusNotFound, "history disabled")
+		return
+	}
+	list, err := s.opts.History.List(0)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "json"
+	}
+	switch format {
+	case "json":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="n-mapped-audit.json"`)
+		_ = json.NewEncoder(w).Encode(list)
+	case "csv":
+		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+		w.Header().Set("Content-Disposition", `attachment; filename="n-mapped-audit.csv"`)
+		writer := csv.NewWriter(w)
+		_ = writer.Write([]string{
+			"id", "started", "ended", "duration_ms", "exit_code",
+			"targets", "hosts_up", "hosts_total", "open_ports",
+			"tags", "notes", "command",
+		})
+		for _, s := range list {
+			dur := s.Ended.Sub(s.Started).Milliseconds()
+			_ = writer.Write([]string{
+				s.ID,
+				s.Started.UTC().Format(time.RFC3339),
+				s.Ended.UTC().Format(time.RFC3339),
+				strconv.FormatInt(dur, 10),
+				strconv.Itoa(s.ExitCode),
+				strings.Join(s.Targets, " "),
+				strconv.Itoa(s.HostsUp),
+				strconv.Itoa(s.HostsTotal),
+				strconv.Itoa(s.OpenPorts),
+				strings.Join(s.Tags, "|"),
+				s.Notes,
+				s.Display,
+			})
+		}
+		writer.Flush()
+	default:
+		writeError(w, http.StatusBadRequest, "format must be json or csv")
 	}
 }
 

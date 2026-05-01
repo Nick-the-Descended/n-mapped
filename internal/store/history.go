@@ -33,6 +33,8 @@ type Record struct {
 	ExitCode   int               `json:"exit_code"`
 	Result     *nmap.Result      `json:"result,omitempty"`
 	Error      string            `json:"error,omitempty"`
+	Tags       []string          `json:"tags,omitempty"`
+	Notes      string            `json:"notes,omitempty"`
 }
 
 // Summary is a slimmed Record used for the history list (no embedded
@@ -47,6 +49,8 @@ type Summary struct {
 	HostsUp    int       `json:"hosts_up"`
 	HostsTotal int       `json:"hosts_total"`
 	OpenPorts  int       `json:"open_ports"`
+	Tags       []string  `json:"tags,omitempty"`
+	Notes      string    `json:"notes,omitempty"`
 	Error      string    `json:"error,omitempty"`
 }
 
@@ -148,6 +152,24 @@ func (h *History) List(limit int) ([]Summary, error) {
 	return out, nil
 }
 
+// UpdateMeta replaces the tags and notes on an existing record. Returns an
+// error if the record doesn't exist.
+func (h *History) UpdateMeta(id string, tags []string, notes string) error {
+	if !idPattern.MatchString(id) {
+		return errors.New("invalid scan id")
+	}
+	rec, err := h.Get(id)
+	if err != nil {
+		return err
+	}
+	if rec == nil {
+		return errors.New("not found")
+	}
+	rec.Tags = tags
+	rec.Notes = notes
+	return h.Save(*rec)
+}
+
 // RecordFromResult builds a Record from a runner.Result. The runner already
 // carries the source request metadata (targets / flag_ids / script_ids).
 func RecordFromResult(res nmap.Result) Record {
@@ -175,6 +197,8 @@ func summarize(r *Record) Summary {
 		Started:  r.Started,
 		Ended:    r.Ended,
 		ExitCode: r.ExitCode,
+		Tags:     r.Tags,
+		Notes:    r.Notes,
 		Error:    r.Error,
 	}
 	if r.Result != nil && r.Result.Run != nil {
